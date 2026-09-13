@@ -35,7 +35,7 @@ export const nativeCapabilityManifests = [
     readOnlyTools: ["calendar_event_search", "calendar_event_list", "calendar_routine_list"],
   },
   {
-    id: "contacts", title: "Contacts", summary: "Search, import, tag, and merge native contacts.",
+    id: "contacts", title: "Contacts", summary: "Search, import, update addresses, tag, and merge native contacts.",
     aliases: ["contact", "contacts", "address book", "vcard"], instructionFile: "contacts.md",
     attachmentHints: [
       { extensions: [".vcf", ".vcard"], mimeIncludes: ["vcard"] },

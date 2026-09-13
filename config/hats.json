@@ -23,7 +23,7 @@
       "icon": "contacts",
       "aliases": ["contact", "address book"],
       "capability": "contacts",
-      "description": "Find, create, import, tag, and merge contacts.",
+      "description": "Find, create, import, update addresses, tag, and merge contacts.",
       "example": "Chapeaux Fous, as my contacts, find Tim's phone number."
     },
     {

@@ -406,6 +406,23 @@ test("a plural contacts request selects focused contact tools without falling ba
   assert.equal(selection.fallbackAll, false);
 });
 
+test("changing another person's address selects the supported contact update tool", () => {
+  const selection = selectRequestCapabilities({
+    tools: [...tools, tool("contact_address_update")],
+    text: "Update Tim's address to 22 New Street.",
+  });
+  assert.equal(selection.capabilities.includes("contacts"), true);
+  assert.equal(names(selection).includes("contact_address_update"), true);
+  assert.equal(selection.fallbackAll, false);
+
+  const selfUpdate = selectRequestCapabilities({
+    tools: [...tools, tool("contact_address_update")],
+    text: "Update my home address.",
+  });
+  assert.equal(selfUpdate.capabilities.includes("profile"), true);
+  assert.equal(selfUpdate.capabilities.includes("contacts"), false);
+});
+
 test("common plural request words select their focused tool families", () => {
   const examples = [
     ["Read these webpages.", "web", "web_page_read"],

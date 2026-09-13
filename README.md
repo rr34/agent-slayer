@@ -326,7 +326,11 @@ capability selector, which controls which exact tool schemas are callable.
   normalized names are candidates directly; different full names require both
   a shared normalized name word and an exact email or phone. Partial-name
   candidates remain review-only. The Contacts view uses row checkboxes in place
-  of initials avatars for atomic bulk tag addition and permanent deletion. Tags
+  of initials avatars for atomic bulk tag addition and permanent deletion.
+  Existing contacts' postal addresses can be added or replaced in place with
+  `contact_address_update`; it version-checks the selected contacts, preserves
+  unrelated details, rejects ambiguous address additions, and never creates a
+  contact record. Tags
   can be renamed across all assigned contacts from either the UI or the
   `contact_tag_rename` agent tool; an existing destination tag is merged safely.
   `contact_lookup_batch` resolves up to 500 names at once and

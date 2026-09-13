@@ -141,6 +141,163 @@ test("contact_tag_rename atomically renames or combines tags for the agent", asy
   `).get().count, 1);
 });
 
+test("contact_address_update changes existing contacts in place and is replay-safe", async (context) => {
+  const { store, organizer, registry, request } = harness(context);
+  const created = organizer.createContact({
+    displayName: "Jordan Lee",
+    methods: [
+      { kind: "email", label: "Personal", value: "jordan@example.test", isPrimary: true },
+      { kind: "postal_address", label: "Home", value: "10 Old Road", isPrimary: true },
+    ],
+    tags: ["Neighbor"],
+  });
+  const oldAddress = created.methods.find(({ kind }) => kind === "postal_address");
+  const input = {
+    updates: [{
+      contact_id: created.id,
+      expected_version: created.version,
+      address_method_id: oldAddress.id,
+      address: "22 New Street\nRaleigh, NC 27601",
+      label: "Home",
+      is_primary: true,
+      can_receive: true,
+    }],
+  };
+  const definition = registry.toolDefinitions().find(({ name }) => name === "contact_address_update");
+  assert.deepEqual(definition.inputSchema.required, ["updates"]);
+  assert.match(definition.description, /without creating contact records/);
+
+  const updated = await registry.execute("contact_address_update", input, {
+    requestId: request.requestId,
+    requestEventId: request.eventId,
+    callId: "contact-address-update",
+    channel: "web",
+  });
+  assert.deepEqual(
+    [updated.selected_contact_count, updated.updated_contact_count, updated.unchanged_contact_count],
+    [1, 1, 0],
+  );
+  assert.equal(updated.results[0].status, "updated");
+  assert.equal(updated.results[0].address.contact_method_id, oldAddress.id);
+  assert.equal(updated.results[0].address.value, "22 New Street\nRaleigh, NC 27601");
+  assert.notEqual(updated.results[0].expected_version, created.version);
+
+  const stored = organizer.getContact(created.id);
+  assert.equal(organizer.listContacts().length, 1);
+  assert.equal(stored.methods.length, 2);
+  assert.equal(stored.methods.find(({ kind }) => kind === "email").value, "jordan@example.test");
+  assert.deepEqual(stored.tags, ["Neighbor"]);
+
+  const replay = await registry.execute("contact_address_update", input, {
+    requestId: request.requestId,
+    requestEventId: request.eventId,
+    callId: "contact-address-replay",
+    channel: "web",
+  });
+  assert.deepEqual(
+    [replay.updated_contact_count, replay.unchanged_contact_count],
+    [0, 1],
+  );
+  assert.equal(replay.results[0].expected_version, updated.results[0].expected_version);
+  assert.equal(store.requireReady().prepare("SELECT COUNT(*) AS count FROM contacts").get().count, 1);
+  assert.equal(store.requireReady().prepare(`
+    SELECT COUNT(*) AS count FROM activity_events
+    WHERE event_type = 'contacts.addresses_updated'
+      AND actor_type = 'tool' AND actor_name = 'contact_address_update'
+  `).get().count, 2);
+});
+
+test("contact_address_update adds only to an addressless contact and validates batches atomically", async (context) => {
+  const { organizer, registry, request } = harness(context);
+  const addressless = organizer.createContact({
+    displayName: "No Address Yet",
+    methods: [{ kind: "phone", value: "+1 555 010 1000" }],
+  });
+  const existing = organizer.createContact({
+    displayName: "Existing Address",
+    methods: [{ kind: "postal_address", label: "Home", value: "1 Current Lane" }],
+  });
+  const added = await registry.execute("contact_address_update", {
+    updates: [{
+      contact_id: addressless.id,
+      expected_version: addressless.version,
+      address_method_id: null,
+      address: "5 First Avenue",
+      label: "Home",
+      is_primary: true,
+      can_receive: true,
+    }],
+  }, {
+    requestId: request.requestId,
+    requestEventId: request.eventId,
+    callId: "contact-address-add",
+    channel: "web",
+  });
+  assert.equal(added.updated_contact_count, 1);
+  assert.equal(organizer.listContacts().length, 2);
+  assert.deepEqual(
+    organizer.getContact(addressless.id).methods.map(({ kind }) => kind).sort(),
+    ["phone", "postal_address"],
+  );
+
+  const beforeAddressless = organizer.getContact(addressless.id);
+  await assert.rejects(
+    registry.execute("contact_address_update", {
+      updates: [
+        {
+          contact_id: addressless.id,
+          expected_version: beforeAddressless.version,
+          address_method_id: beforeAddressless.methods.find(({ kind }) => kind === "postal_address").id,
+          address: "99 Should Roll Back Road",
+          label: "Home",
+          is_primary: true,
+          can_receive: true,
+        },
+        {
+          contact_id: existing.id,
+          expected_version: "stale",
+          address_method_id: existing.methods[0].id,
+          address: "2 Invalid Batch Street",
+          label: "Home",
+          is_primary: true,
+          can_receive: true,
+        },
+      ],
+    }, {
+      requestId: request.requestId,
+      requestEventId: request.eventId,
+      callId: "contact-address-atomic-rejection",
+      channel: "web",
+    }),
+    /changed after it was selected/,
+  );
+  assert.equal(
+    organizer.getContact(addressless.id).methods.find(({ kind }) => kind === "postal_address").value,
+    "5 First Avenue",
+  );
+
+  await assert.rejects(
+    registry.execute("contact_address_update", {
+      updates: [{
+        contact_id: existing.id,
+        expected_version: existing.version,
+        address_method_id: null,
+        address: "2 Ambiguous Street",
+        label: "Home",
+        is_primary: true,
+        can_receive: true,
+      }],
+    }, {
+      requestId: request.requestId,
+      requestEventId: request.eventId,
+      callId: "contact-address-ambiguous",
+      channel: "web",
+    }),
+    /already has a postal address/,
+  );
+  assert.equal(organizer.getContact(existing.id).methods[0].value, "1 Current Lane");
+});
+
 test("contact_search exposes the Contacts UI substring search to the agent", async (context) => {
   const { organizer, registry, request } = harness(context);
   organizer.createContact({

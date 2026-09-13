@@ -23,6 +23,14 @@ When the user asks to rename a contact tag, call `contact_tag_rename` with the
 current and replacement labels. If the replacement already exists, the tool
 combines the contact assignments without creating duplicate tags.
 
+When the user asks to add or change a postal address on an existing contact,
+resolve that contact with `contact_search` or `contact_lookup_batch`, then call
+`contact_address_update` with the returned contact ID and expected version. Use
+the existing postal-address method ID when replacing an address. Use a null
+method ID only when the contact has no postal address. This tool changes the
+existing contact in place and preserves every unrelated method, tag, and
+identity field; never use `contact_import` to represent an address correction.
+
 When resolving or tagging a large user-supplied contact list, send all names in
 one `contact_lookup_batch` call, review its exact matches, then send every
 approved ID in one `contact_tag_add_batch` call. New contacts can receive the

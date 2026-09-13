@@ -200,6 +200,35 @@ function reviewedContactSelections(value) {
   });
 }
 
+function contactAddressUpdates(value) {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 100) {
+    throw new OrganizerInputError("updates must contain 1 through 100 contact address updates.");
+  }
+  const seen = new Set();
+  return value.map((update, index) => {
+    if (!update || typeof update !== "object" || Array.isArray(update)) {
+      throw new OrganizerInputError(`updates[${index}] must be an object.`);
+    }
+    const contactId = identifier(update.contactId, `updates[${index}].contactId`);
+    if (seen.has(contactId)) {
+      throw new OrganizerInputError("updates cannot contain the same contact more than once.");
+    }
+    seen.add(contactId);
+    if (typeof update.expectedVersion !== "string" || !update.expectedVersion) {
+      throw new OrganizerInputError(`updates[${index}].expectedVersion is required.`);
+    }
+    const [address] = contactMethods([{
+      id: update.addressMethodId,
+      kind: "postal_address",
+      label: update.label,
+      value: update.address,
+      isPrimary: update.isPrimary,
+      canReceive: update.canReceive,
+    }]);
+    return { contactId, expectedVersion: update.expectedVersion, address };
+  });
+}
+
 function contactIdentifiers(value) {
   if (!Array.isArray(value) || value.length < 1 || value.length > 10_000) {
     throw new OrganizerInputError("contactIds must contain 1 through 10000 contact ids.");
@@ -1215,6 +1244,163 @@ export class OrganizerStore {
       this.database.exec("ROLLBACK");
       if (error?.code === "ER_DUP_ENTRY") {
         throw new OrganizerInputError("Duplicate contact methods are not allowed.", 409);
+      }
+      throw error;
+    }
+  }
+
+  updateContactAddresses(input, activity = {}) {
+    const updates = contactAddressUpdates(input?.updates);
+    this.database.exec("START TRANSACTION");
+    try {
+      const plans = updates.map((update) => {
+        const contact = this.#contact(update.contactId);
+        if (!contact) {
+          throw new OrganizerInputError(`Contact ${update.contactId} was not found.`, 404);
+        }
+        const addresses = contact.methods.filter(({ kind }) => kind === "postal_address");
+        const exactAddress = addresses.find(({ value }) => (
+          normalizedContactMethod("postal_address", value) === update.address.normalizedValue
+        ));
+        let target = null;
+        let status = "updated";
+
+        if (update.address.id !== null) {
+          target = contact.methods.find(({ id }) => Number(id) === update.address.id) ?? null;
+          if (!target) {
+            throw new OrganizerInputError(
+              `Address method ${update.address.id} does not belong to contact ${update.contactId}.`,
+              409,
+            );
+          }
+          if (target.kind !== "postal_address") {
+            throw new OrganizerInputError(
+              `Contact method ${update.address.id} is not a postal address.`,
+              409,
+            );
+          }
+          const unchanged = target.label === update.address.label
+            && normalizedContactMethod("postal_address", target.value) === update.address.normalizedValue
+            && target.isPrimary === update.address.isPrimary
+            && target.canReceive === update.address.canReceive;
+          if (unchanged) status = "unchanged";
+          else if (exactAddress && exactAddress.id !== target.id) {
+            throw new OrganizerInputError(
+              `Contact ${update.contactId} already has that postal address.`,
+              409,
+            );
+          }
+        } else if (exactAddress) {
+          const unchanged = exactAddress.label === update.address.label
+            && exactAddress.isPrimary === update.address.isPrimary
+            && exactAddress.canReceive === update.address.canReceive;
+          if (!unchanged) {
+            throw new OrganizerInputError(
+              `Contact ${update.contactId} already has that address; supply its addressMethodId to change its label or delivery settings.`,
+              409,
+            );
+          }
+          target = exactAddress;
+          status = "unchanged";
+        } else if (addresses.length > 0) {
+          throw new OrganizerInputError(
+            `Contact ${update.contactId} already has a postal address; supply its addressMethodId to replace the intended address.`,
+            409,
+          );
+        }
+
+        if (status !== "unchanged" && update.expectedVersion !== contact.version) {
+          throw new OrganizerInputError(
+            `Contact ${update.contactId} changed after it was selected. Search again and retry with its current version.`,
+            409,
+          );
+        }
+        return { ...update, contact, target, status };
+      });
+
+      const insert = this.database.prepare(`
+        INSERT INTO contact_methods (
+          contact_id, method_kind, label, value, normalized_value, is_primary, can_receive
+        ) VALUES (?, 'postal_address', ?, ?, ?, ?, ?)
+      `);
+      const replace = this.database.prepare(`
+        UPDATE contact_methods
+        SET label = ?, value = ?, normalized_value = ?, is_primary = ?, can_receive = ?
+        WHERE contact_method_id = ? AND contact_id = ? AND method_kind = 'postal_address'
+      `);
+      const clearOtherPrimary = this.database.prepare(`
+        UPDATE contact_methods SET is_primary = 0
+        WHERE contact_id = ? AND method_kind = 'postal_address' AND contact_method_id <> ?
+      `);
+      const touchContact = this.database.prepare(
+        "UPDATE contacts SET updated_at_utc = ? WHERE contact_id = ?",
+      );
+      const candidateVersion = new Date().toISOString();
+      const results = [];
+      for (const plan of plans) {
+        let addressMethodId = plan.target?.id ?? null;
+        if (plan.status === "updated") {
+          if (plan.target) {
+            replace.run(
+              plan.address.label,
+              plan.address.value,
+              plan.address.normalizedValue,
+              plan.address.isPrimary ? 1 : 0,
+              plan.address.canReceive ? 1 : 0,
+              plan.target.id,
+              plan.contactId,
+            );
+          } else {
+            addressMethodId = Number(insert.run(
+              plan.contactId,
+              plan.address.label,
+              plan.address.value,
+              plan.address.normalizedValue,
+              plan.address.isPrimary ? 1 : 0,
+              plan.address.canReceive ? 1 : 0,
+            ).lastInsertRowid);
+          }
+          if (plan.address.isPrimary) clearOtherPrimary.run(plan.contactId, addressMethodId);
+          const nextVersion = candidateVersion > plan.contact.version
+            ? candidateVersion
+            : new Date(new Date(plan.contact.version).getTime() + 1).toISOString();
+          touchContact.run(nextVersion, plan.contactId);
+        }
+        const contact = this.#contact(plan.contactId);
+        results.push({
+          status: plan.status,
+          contact,
+          address: contact.methods.find(({ id }) => Number(id) === addressMethodId),
+        });
+      }
+
+      const updatedCount = results.filter(({ status }) => status === "updated").length;
+      this.#activity({
+        eventType: "contacts.addresses_updated",
+        status: "complete",
+        name: "Contact addresses updated",
+        subjectType: "contact_batch",
+        subjectId: plans.length,
+        contentText: `${updatedCount} updated, ${plans.length - updatedCount} unchanged`,
+        payload: {
+          selectedContactCount: plans.length,
+          updatedContactCount: updatedCount,
+          unchangedContactCount: plans.length - updatedCount,
+          contactIds: plans.map(({ contactId }) => contactId),
+        },
+        ...activity,
+      });
+      this.database.exec("COMMIT");
+      return {
+        selectedContactCount: plans.length,
+        updatedContactCount: updatedCount,
+        unchangedContactCount: plans.length - updatedCount,
+        results,
+      };
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      if (error?.code === "ER_DUP_ENTRY") {
+        throw new OrganizerInputError("A contact already has that postal address.", 409);
       }
       throw error;
     }

@@ -32,6 +32,7 @@ const descriptions = new Map(Object.entries({
   contact_file_import: create("Import one complete verified CSV or vCard attachment directly, without copying its records through model arguments."),
   contact_search: read("Search contacts by descriptive or partial details using the Contacts UI's matching behavior."),
   contact_lookup_batch: read("Resolve up to 500 exact normalized display names in one bounded lookup, returning every current match and stable ID."),
+  contact_address_update: update("Atomically set postal addresses on existing contacts using current IDs and versions, without creating contacts or replacing unrelated contact data."),
   contact_tag_add_batch: update("Atomically add one tag to as many as 10,000 contacts while preserving existing tags."),
   contact_tag_rename: update("Atomically rename or merge one contact tag across every assigned contact."),
   contact_dedupe_clear: destructive("Recompute and merge conservative source-aware duplicate contact groups. Use only for automatically eligible exact-name groups."),

@@ -191,6 +191,7 @@ test("native database-backed tools preserve their records without result decorat
   assert.equal(Object.hasOwn(definitions.contact_tag_rename, "new_tag"), true);
   assert.equal(Object.hasOwn(definitions.contact_search, "queries"), true);
   assert.equal(Object.hasOwn(definitions.contact_lookup_batch, "names"), true);
+  assert.equal(Object.hasOwn(definitions.contact_address_update, "updates"), true);
   assert.equal(Object.hasOwn(definitions.contact_tag_add_batch, "contact_ids"), true);
   assert.equal(Object.hasOwn(definitions.contact_duplicate_list, "limit"), true);
   assert.equal(Object.hasOwn(definitions.contact_dedupe_clear, "max_groups"), true);

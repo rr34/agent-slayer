@@ -29,6 +29,20 @@ const contactMethodRecordSchema = {
   },
 };
 
+const resolvedContactMethodSchema = {
+  type: "object",
+  description: "One contact method returned by contact resolution, using the native Contacts service field names.",
+  properties: {
+    id: { type: "integer", minimum: 1, description: "Stable contact-method identifier. Pass this as address_method_id when replacing a postal address." },
+    kind: { type: "string", enum: ["email", "phone", "postal_address", "handle", "url", "other"], description: "Kind of contact method; postal_address identifies a physical mailing or street address." },
+    label: { type: ["string", "null"], description: "Human-facing qualifier such as home, work, mobile, or billing." },
+    value: { type: "string", description: "Original address or reachable identity as supplied." },
+    isPrimary: { type: "boolean", description: "True when this is the preferred method of its kind." },
+    canReceive: { type: "boolean", description: "True when this method may be used as a delivery destination." },
+  },
+  required: ["id", "kind", "label", "value", "isPrimary", "canReceive"],
+};
+
 const contactRecordSchema = {
   type: ["object", "null"],
   description: "Provides one address book for people, organizations, and services that other agent records need to identify or relate to.",
@@ -639,6 +653,7 @@ export function registerContactTools(
                 type: "array",
                 items: { type: "string" },
               },
+              methods: { type: "array", items: resolvedContactMethodSchema },
             },
           },
         },
@@ -713,6 +728,7 @@ export function registerContactTools(
                       type: "array",
                       items: { type: "string" },
                     },
+                    methods: { type: "array", items: resolvedContactMethodSchema },
                   },
                 },
               },
@@ -759,6 +775,105 @@ export function registerContactTools(
         })),
       };
       return result;
+    },
+  });
+
+  registry.register({
+    name: "contact_address_update",
+    description: "Atomically set a postal address on 1 through 100 existing contacts without creating contact records or replacing their other methods, tags, or identity fields. Resolve each contact with contact_search or contact_lookup_batch and use its current expected_version. Supply address_method_id to replace one existing postal address; use null only when the contact has no postal address. An exact replay is unchanged even with the prior version. If an address already exists but no method ID is supplied, the call stops instead of guessing or adding a second address. The complete batch validates before any write.",
+    outputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        selected_contact_count: { type: "integer", minimum: 1, description: "Number of distinct existing contacts validated by this call." },
+        updated_contact_count: { type: "integer", minimum: 0, description: "Number of contacts whose stored postal address changed." },
+        unchanged_contact_count: { type: "integer", minimum: 0, description: "Number of exact replay items that already had the requested address state." },
+        results: {
+          type: "array",
+          description: "One correlated result for each requested contact, in input order.",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              status: { type: "string", enum: ["updated", "unchanged"], description: "updated means this call changed the address; unchanged means the requested state already existed." },
+              contact_id: { type: "integer", minimum: 1, description: "Stable ID of the existing contact that was checked or changed." },
+              expected_version: { type: "string", minLength: 1, description: "Current contact version after this result; use it for a later mutation." },
+              address: {
+                ...contactMethodRecordSchema,
+                type: "object",
+                additionalProperties: false,
+                required: methodFields,
+              },
+            },
+            required: ["status", "contact_id", "expected_version", "address"],
+          },
+        },
+      },
+      required: [
+        "selected_contact_count", "updated_contact_count", "unchanged_contact_count", "results",
+      ],
+    },
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        updates: {
+          type: "array", minItems: 1, maxItems: 100,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              contact_id: { type: "integer", minimum: 1, description: "Stable ID of the existing contact to change. This tool never creates a contact." },
+              expected_version: { type: "string", minLength: 1, maxLength: 100, description: "Current contact version returned by contact_search or contact_lookup_batch." },
+              address_method_id: { type: ["integer", "null"], minimum: 1, description: "Existing postal-address method ID to replace. Use null only when the contact currently has no postal address." },
+              address: { type: "string", minLength: 1, maxLength: 2000, description: "Complete new physical mailing or street address." },
+              label: { ...nullableString, maxLength: 100, description: "Human-facing qualifier such as home, work, or billing." },
+              is_primary: { type: "boolean", description: "True to make this the contact's sole primary postal address." },
+              can_receive: { type: "boolean", description: "True when this address may be used as a delivery destination." },
+            },
+            required: [
+              "contact_id", "expected_version", "address_method_id", "address", "label",
+              "is_primary", "can_receive",
+            ],
+          },
+        },
+      },
+      required: ["updates"],
+    },
+    async execute({ updates }, context) {
+      const result = organizer.updateContactAddresses({
+        updates: updates.map((update) => ({
+          contactId: update.contact_id,
+          expectedVersion: update.expected_version,
+          addressMethodId: update.address_method_id,
+          address: update.address,
+          label: update.label,
+          isPrimary: update.is_primary,
+          canReceive: update.can_receive,
+        })),
+      }, contactToolActivity(context, "contact_address_update"));
+      const database = store.requireReady();
+      return {
+        selected_contact_count: result.selectedContactCount,
+        updated_contact_count: result.updatedContactCount,
+        unchanged_contact_count: result.unchangedContactCount,
+        results: result.results.map((item) => {
+          const stored = contactFromDatabase(database, item.contact.id);
+          const address = stored.contact_methods.find(({ contact_method_id: id }) => (
+            Number(id) === Number(item.address.id)
+          ));
+          return {
+            status: item.status,
+            contact_id: Number(item.contact.id),
+            expected_version: item.contact.version,
+            address: {
+              ...address,
+              contact_method_id: Number(address.contact_method_id),
+              contact_id: Number(address.contact_id),
+            },
+          };
+        }),
+      };
     },
   });
 

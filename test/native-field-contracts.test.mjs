@@ -30,6 +30,11 @@ test("owning tool contracts explain inputs and results without a database or sch
   assert.match(definitions.calendar_todo_links_place.description, /moves that to-do's other work link/);
   assert.match(definitions.calendar_routine_generate.description, /earliest current or upcoming event/);
   assert.ok(definitions.contact_search.outputSchema.properties.matches.items.properties.display_name.description);
+  assert.match(
+    definitions.contact_search.outputSchema.properties.matches.items.properties
+      .methods.items.properties.id.description,
+    /address_method_id/,
+  );
   assert.equal(schemaProblem({ updated_count: 1, items: [{ task: { text: "Updated task" } }] }, definitions.todo_update.outputSchema), null);
 });
 
