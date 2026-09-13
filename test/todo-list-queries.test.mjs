@@ -23,6 +23,8 @@ function fixture(pages = []) {
 
 test("todo_list accepts only bounded query batches and validates the full batch before reading", async () => {
   const { registry, execute, reads } = fixture();
+  const definition = registry.toolDefinitions().find(({ name }) => name === "todo_list");
+  assert.equal(definition.inputSchema.properties.queries.items.properties.status.enum.includes("unplanned"), false);
   await assert.rejects(registry.execute("todo_list", { group: null, status: null, limit: 2 }), /queries is required/);
   await assert.rejects(execute([]), /too few/);
   await assert.rejects(execute(Array.from({ length: 21 }, (_, i) => query({ query_id: String(i) }))), /too many/);

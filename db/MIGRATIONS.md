@@ -58,6 +58,14 @@ Do not restart the service when migration or verification fails. If no
 migrations are pending, `npm run db:migrate` is a read-only integrity check and
 does not require the confirmation variables.
 
+## Version 42: Retire the unplanned to-do status
+
+Converts every existing `unplanned` personal to-do to `todo`, removes
+`unplanned` from the authoritative status enum, and updates the derived
+`open_todo_personal` view. No task or event association is deleted. This
+migration requires writer downtime because the application and enum contract
+must change together.
+
 ## Version 41: Restore the catch-up source check
 
 Restores `catch_up_one_source`, which version 40 intended to replace after
@@ -99,7 +107,7 @@ reads or writes this table; current request history remains in
 `activity_events` and is unaffected.
 
 This block raised the application schema to version 38; the current application
-requires version 41. Prepare a verified backup before running the migration.
+requires version 42. Prepare a verified backup before running the migration.
 Writer downtime is not required for this block because
 the removed table has no current writer, though earlier pending migrations may
 still require it. The guarded drop supports replay, and the migration verifies

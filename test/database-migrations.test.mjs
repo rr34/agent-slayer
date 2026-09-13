@@ -106,6 +106,44 @@ test("the catch-up source repair requires the restored check", async () => {
   await assertMigrationSpecificIntegrity(connection, { version: 41 }, "test_database");
 });
 
+test("the unplanned retirement verifies the enum, rows, and actionable view", async () => {
+  const connection = {
+    enumType: "enum('todo','complete','ignore','archive','ai_suggested')",
+    taskCount: 0,
+    view: "select * from todo_personal where status in ('todo','ai_suggested')",
+    async query(sql, parameters) {
+      if (sql.includes("information_schema.COLUMNS")) {
+        assert.deepEqual(parameters, ["test_database"]);
+        return [[{ COLUMN_TYPE: this.enumType }]];
+      }
+      if (sql.includes("COUNT(*) AS task_count")) return [[{ task_count: this.taskCount }]];
+      if (sql.includes("information_schema.VIEWS")) {
+        assert.deepEqual(parameters, ["test_database"]);
+        return [[{ VIEW_DEFINITION: this.view }]];
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+  };
+  await assertMigrationSpecificIntegrity(connection, { version: 42 }, "test_database");
+  connection.enumType = "enum('unplanned','todo','complete','ignore','archive','ai_suggested')";
+  await assert.rejects(
+    assertMigrationSpecificIntegrity(connection, { version: 42 }, "test_database"),
+    /did not retire the unplanned/u,
+  );
+  connection.enumType = "enum('todo','complete','ignore','archive','ai_suggested')";
+  connection.taskCount = 1;
+  await assert.rejects(
+    assertMigrationSpecificIntegrity(connection, { version: 42 }, "test_database"),
+    /left unplanned personal to-dos/u,
+  );
+  connection.taskCount = 0;
+  connection.view = "select * from todo_personal where status in ('unplanned','todo','ai_suggested')";
+  await assert.rejects(
+    assertMigrationSpecificIntegrity(connection, { version: 42 }, "test_database"),
+    /did not update open_todo_personal/u,
+  );
+});
+
 test("contact tag rename integrity rejects incomplete states", async () => {
   const connection = {
     rows: [],
@@ -156,11 +194,11 @@ test("Journal migration failures identify the exact leftover constraint without 
 
 test("the migration ledger is newest-first and returned oldest-first for execution", () => {
   const migrations = readMigrationLedger(migrationsFilename);
-  assert.deepEqual(migrations.map(({ version }) => version), [30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41]);
-  for (let current = 29; current <= 41; current += 1) {
+  assert.deepEqual(migrations.map(({ version }) => version), [30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42]);
+  for (let current = 29; current <= 42; current += 1) {
     assert.deepEqual(
       validatePendingMigrations(migrations, current).map(({ version }) => version),
-      Array.from({ length: 41 - current }, (_, index) => current + index + 1),
+      Array.from({ length: 42 - current }, (_, index) => current + index + 1),
     );
   }
 });

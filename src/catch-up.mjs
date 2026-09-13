@@ -22,6 +22,18 @@ function publicQuestion(row, source = null) {
   };
 }
 const digest = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+function calendarPlanningSourceMaterial({
+  title, status, startsAtUtc, endsAtUtc, planningPromptText,
+  description, location, timeZone, isAllDay,
+}) {
+  return [
+    "planning", title, status, startsAtUtc, endsAtUtc, planningPromptText,
+    description, location, timeZone, isAllDay,
+  ];
+}
+export function calendarPlanningSourceVersion(input) {
+  return digest(calendarPlanningSourceMaterial(input));
+}
 const bounded = (rows, label) => {
   if (rows.length > maximumSources) throw new Error(`${label} exceeds ${maximumSources} records; narrow the catch-up date range.`);
   return rows;
@@ -93,6 +105,59 @@ export class CatchUpService {
     const scope = row ? JSON.parse(row.payload_json).scope : null;
     return scope ? normalizeCatchUpScope(scope) : null;
   }
+  withCalendarPlanningStates(events) {
+    if (!Array.isArray(events)) throw new Error("Calendar events must be an array");
+    const planningEvents = bounded(events.filter((event) => (
+      event?.planningPromptText?.trim()
+      && Number.isSafeInteger(Number(event.seriesId ?? event.id))
+    )), "Calendar planning events");
+    const eventIds = [...new Set(planningEvents.map((event) => Number(event.seriesId ?? event.id)))];
+    if (eventIds.length === 0) return events.map((event) => ({ ...event, planningState: null }));
+    const placeholders = eventIds.map(() => "?").join(", ");
+    const sources = this.database.prepare(`SELECT * FROM calendar_events
+      WHERE calendar_event_id IN (${placeholders})`).all(...eventIds);
+    const sourcesById = new Map(sources.map((row) => [Number(row.calendar_event_id), row]));
+    const planningSources = [...new Map(planningEvents.map((event) => {
+      const eventId = Number(event.seriesId ?? event.id);
+      const occurrenceKey = `plan:${event.isGeneratedOccurrence ? event.startsAtUtc : "event"}`;
+      return [`${eventId}:${occurrenceKey}`, { eventId, occurrenceKey }];
+    })).values()];
+    const sourcePlaceholders = planningSources.map(() => "(?, ?)").join(", ");
+    const questions = bounded(this.database.prepare(`SELECT * FROM catch_up_questions
+      WHERE (calendar_event_id, occurrence_key) IN (${sourcePlaceholders})
+      ORDER BY question_id LIMIT 2001`).all(
+      ...planningSources.flatMap(({ eventId, occurrenceKey }) => [eventId, occurrenceKey]),
+    ), "Calendar planning questions");
+    const questionsBySource = new Map(questions.map((row) => [
+      `${Number(row.calendar_event_id)}:${row.occurrence_key}`, row,
+    ]));
+    const at = Date.parse(this.now());
+    return events.map((event) => {
+      if (!event?.planningPromptText?.trim()) return { ...event, planningState: null };
+      const eventId = Number(event.seriesId ?? event.id);
+      const source = sourcesById.get(eventId);
+      if (!source) return { ...event, planningState: null };
+      const occurrenceKey = `plan:${event.isGeneratedOccurrence ? event.startsAtUtc : "event"}`;
+      const question = questionsBySource.get(`${eventId}:${occurrenceKey}`);
+      const sourceVersion = calendarPlanningSourceVersion({
+        title: source.title,
+        status: source.status,
+        startsAtUtc: event.startsAtUtc,
+        endsAtUtc: event.endsAtUtc,
+        planningPromptText: source.planning_prompt_text,
+        description: source.description,
+        location: source.location_text,
+        timeZone: source.time_zone,
+        isAllDay: source.is_all_day,
+      });
+      let planningState = "needs_planning";
+      if (question?.source_version === sourceVersion) {
+        if (question.resolved_at) planningState = "planned";
+        else if (question.ask_after && Date.parse(question.ask_after) > at) planningState = "deferred";
+      }
+      return { ...event, planningState };
+    });
+  }
   event(id, occurrenceKey) {
     id = Number(id);
     const row = this.database.prepare("SELECT * FROM calendar_events WHERE calendar_event_id = ?").get(id);
@@ -111,7 +176,17 @@ export class CatchUpService {
       ends = instance.endsAtUtc;
     } else if (row.recurrence_rule) return null;
     return question({ calendar_event_id: id }, originalKey,
-      [planning ? "planning" : "review", row.title, row.status, starts, ends, row.planning_prompt_text, row.description, row.location_text, row.time_zone, row.is_all_day],
+      planning ? calendarPlanningSourceMaterial({
+        title: row.title,
+        status: row.status,
+        startsAtUtc: starts,
+        endsAtUtc: ends,
+        planningPromptText: row.planning_prompt_text,
+        description: row.description,
+        location: row.location_text,
+        timeZone: row.time_zone,
+        isAllDay: row.is_all_day,
+      }) : ["review", row.title, row.status, starts, ends, row.planning_prompt_text, row.description, row.location_text, row.time_zone, row.is_all_day],
       planning ? row.planning_prompt_text : `How did “${row.title}” go?`, planning ? starts : ends || starts,
       row.status === "cancelled");
   }

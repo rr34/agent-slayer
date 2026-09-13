@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { localDateUtcBounds } from "./temporal-consistency.mjs";
 
-export const todoStatuses = ["unplanned", "todo", "complete", "ignore", "archive", "ai_suggested"];
+export const todoStatuses = ["todo", "complete", "ignore", "archive", "ai_suggested"];
 
 const localDateRange = {
   type: ["object", "null"], additionalProperties: false,
@@ -17,7 +17,7 @@ export const todoQueryFilterProperties = {
   group: { type: ["string", "null"], description: "Exact group name; null selects all groups." },
   status: {
     type: ["string", "null"], enum: [...todoStatuses, null],
-    description: "unplanned: needs a plan; todo: intended work; complete: finished; ignore: intentionally skipped; archive: retained history; ai_suggested: awaiting acceptance. Null excludes terminal tasks unless a completion range or task IDs are supplied, in which case all statuses are eligible.",
+    description: "todo: intended work; complete: finished; ignore: intentionally skipped; archive: retained history; ai_suggested: awaiting acceptance. Null excludes terminal tasks unless a completion range or task IDs are supplied, in which case all statuses are eligible.",
   },
   personal_task_ids: {
     type: ["array", "null"], minItems: 1, maxItems: 200, uniqueItems: true,

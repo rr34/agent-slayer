@@ -294,7 +294,12 @@ capability selector, which controls which exact tool schemas are callable.
   `calendar_routine_generate` provide the native model-facing calendar
   path. Event records retain exact `calendar_events` column names and tool-owned
   field descriptions, while range reads identify expanded recurrence and birthday
-  instances as computed occurrences. All-day scheduling is explicit and
+  instances as computed occurrences. An event stores its own optional planning
+  prompt; calendar routines copy their prompt into newly generated concrete
+  events without later rewriting those snapshots. Calendar range reads derive
+  each occurrence's planning state as needs planning, deferred, planned, or not
+  applicable from that saved prompt and its source-linked check-in record.
+  All-day scheduling is explicit and
   recurrence is supplied as structured concepts rather than raw RRULE. The
   product-facing event states are Active and Archived; iCalendar status values
   remain an internal storage and interoperability detail. Search matches every

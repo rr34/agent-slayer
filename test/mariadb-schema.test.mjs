@@ -67,7 +67,7 @@ test("MariaDB connection settings validate names and ports", () => {
   );
 });
 
-test("the authoritative MariaDB baseline is complete at schema version 41", () => {
+test("the authoritative MariaDB baseline is complete at schema version 42", () => {
   const source = fs.readFileSync(path.join(root, "db", "mariadb", "0001-baseline.sql"), "utf8");
   const statements = parseMariaDbScript(source);
   assert.equal(statements.filter((statement) => /^CREATE TABLE\b/iu.test(statement)).length, 33);
@@ -103,7 +103,17 @@ test("the authoritative MariaDB baseline is complete at schema version 41", () =
   assert.ok(statements.some((statement) => statement.startsWith("CREATE TABLE calendar_routines ")));
   assert.ok(statements.some((statement) => statement.startsWith("CREATE TABLE calendar_events_todo_join ")));
   assert.doesNotMatch(source, /CREATE TABLE todo_routines\b/u);
-  assert.match(statements.at(-1), /VALUES \(1, 41, 'Chapeaux Fous MariaDB database'\)$/);
+  assert.match(statements.at(-1), /VALUES \(1, 42, 'Chapeaux Fous MariaDB database'\)$/);
+});
+
+test("the unplanned to-do retirement preserves tasks before narrowing the enum", () => {
+  const migration = readMigrationLedger(path.join(root, "db", "migrations.sql"))
+    .find(({ version }) => version === 42)?.sql ?? "";
+  const statements = splitMariaDbStatements(migration);
+  assert.equal(statements.length, 3);
+  assert.match(statements[0], /UPDATE todo_personal[\s\S]+SET status = 'todo'[\s\S]+WHERE CAST\(status AS CHAR\) = 'unplanned'/u);
+  assert.match(statements[1], /MODIFY COLUMN status ENUM\('todo', 'complete', 'ignore', 'archive', 'ai_suggested'\)/u);
+  assert.match(statements[2], /CREATE OR REPLACE VIEW open_todo_personal[\s\S]+WHERE status IN \('todo', 'ai_suggested'\)/u);
 });
 
 test("the catch-up source repair separates dropping and restoring the check", () => {

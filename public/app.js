@@ -2651,6 +2651,18 @@ function agendaEventItem(calendarEvent, { allDay = false } = {}) {
     const description = String(calendarEvent.description ?? "").trim();
     const details = [allDay ? "All-day event" : null, calendarEvent.location].filter(Boolean).join(" · ");
     button.append(node("strong", "", calendarEvent.title));
+    if (calendarEvent.planningState) {
+      const planningLabels = {
+        needs_planning: "Needs planning",
+        deferred: "Deferred",
+        planned: "Planned",
+      };
+      button.append(node(
+        "span",
+        `agenda-planning-state ${calendarEvent.planningState}`,
+        planningLabels[calendarEvent.planningState] ?? calendarEvent.planningState.replaceAll("_", " "),
+      ));
+    }
     if (description) button.append(node("span", "agenda-item-description", description));
     if (details) button.append(node("span", "agenda-item-details", details));
     if (calendarEvent.seriesId) {
@@ -3216,7 +3228,7 @@ function renderTodos() {
       calendar.addEventListener("click", () => void openTodoCalendar(todo));
       edit.addEventListener("click", () => openTodoEditor(todo));
       if (todo.interactionGuideId != null && todo.interactionGuideStatus === "active"
-          && ["unplanned", "todo", "ai_suggested"].includes(todo.status)) {
+          && ["todo", "ai_suggested"].includes(todo.status)) {
         const startGuide = node("button", "secondary compact", "Start briefing");
         startGuide.type = "button";
         startGuide.addEventListener("click", () => void startTodoInteractionGuide(todo, startGuide));
@@ -3229,7 +3241,7 @@ function renderTodos() {
         assignSequence.addEventListener("click", () => void assignNextTodoSequence(todo, assignSequence));
         actions.append(assignSequence);
       }
-      if (["unplanned", "todo", "ai_suggested"].includes(todo.status)) actions.append(calendar);
+      if (["todo", "ai_suggested"].includes(todo.status)) actions.append(calendar);
       actions.append(top, up, down, bottom, edit);
       card.append(controls, body, actions);
       cards.append(card);
@@ -3417,7 +3429,7 @@ function openTodoEditor(todo = null, groupId = null, { routine = false } = {}) {
   elements.todoSequence.disabled = routine;
   elements.todoStatus.value = todo?.status ?? "todo";
   for (const option of elements.todoStatus.options) {
-    option.disabled = routine && !["unplanned", "todo", "ai_suggested"].includes(option.value);
+    option.disabled = routine && !["todo", "ai_suggested"].includes(option.value);
   }
   elements.todoDialog.showModal();
   elements.todoText.focus();

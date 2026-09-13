@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { CatchUpService } from "../src/catch-up.mjs";
 import { SlayerDatabase } from "../src/database.mjs";
 import { Ledger } from "../src/ledger.mjs";
 import { OrganizerStore } from "../src/organizer-store.mjs";
@@ -16,8 +17,9 @@ function calendarFixture(context) {
   const organizer = new OrganizerStore(temporary.target);
   context.after(() => organizer.close());
   const ledger = new Ledger(store);
+  const planning = new CatchUpService(store, organizer, ledger);
   const registry = new ToolRegistry();
-  registerCalendarTools(registry, store, organizer, ledger);
+  registerCalendarTools(registry, store, organizer, ledger, null, planning);
   return { store, ledger, registry };
 }
 
@@ -102,6 +104,7 @@ test("native calendar tools create, list, update, and cancel stored events", asy
     occurrence_starts_at_utc: "2026-08-18T19:00:00.000Z",
     occurrence_ends_at_utc: "2026-08-18T20:00:00.000Z",
     is_generated_occurrence: false,
+    planning_state: null,
   });
 
   const updated = await registry.execute("calendar_event_update", {
@@ -126,6 +129,27 @@ test("native calendar tools create, list, update, and cancel stored events", asy
     ends_at_utc: "2026-08-19T00:00:00Z",
   }, toolContext);
   assert.equal(afterCancellation.count, 0);
+});
+
+test("calendar reads hide archived linked to-dos without deleting their associations", async (context) => {
+  const { store, registry } = calendarFixture(context);
+  const database = store.requireReady();
+  const todoId = Number(database.prepare(`INSERT INTO todo_personal (todo_group_id, text, status)
+    SELECT todo_group_id, 'Historical preparation', 'archive' FROM todo_groups WHERE name = 'Inbox'
+    RETURNING personal_task_id`).get().personal_task_id);
+  const eventId = Number(database.prepare(`INSERT INTO calendar_events (title, starts_at_utc, status)
+    VALUES ('Current appointment', '2026-09-13T15:00:00.000Z', 'confirmed')
+    RETURNING calendar_event_id`).get().calendar_event_id);
+  database.prepare(`INSERT INTO calendar_events_todo_join
+    (calendar_event_id, personal_task_id, relationship_kind) VALUES (?, ?, 'context')`).run(eventId, todoId);
+
+  const listed = await registry.execute("calendar_event_list", {
+    starts_at_utc: "2026-09-13T00:00:00.000Z",
+    ends_at_utc: "2026-09-14T00:00:00.000Z",
+  });
+  assert.equal(listed.occurrences[0].calendar_events.linked_todos.length, 0);
+  assert.equal(Number(database.prepare(`SELECT COUNT(*) AS count FROM calendar_events_todo_join
+    WHERE calendar_event_id = ? AND personal_task_id = ?`).get(eventId, todoId).count), 1);
 });
 
 test("calendar updates distinguish series changes from one occurrence and preserve exceptions", async (context) => {
@@ -195,6 +219,11 @@ test("calendar events store and clear an optional planning prompt", async (conte
     recurrence: null,
   });
   assert.equal(created.event.planning_prompt_text, "What should we do during this block?");
+  const beforeClear = await registry.execute("calendar_event_list", {
+    starts_at_utc: "2026-09-05T00:00:00.000Z",
+    ends_at_utc: "2026-09-07T00:00:00.000Z",
+  });
+  assert.equal(beforeClear.occurrences[0].occurrence.planning_state, "needs_planning");
 
   const updated = await registry.execute("calendar_event_update", {
     calendar_event_id: created.event.calendar_event_id,
@@ -210,6 +239,11 @@ test("calendar events store and clear an optional planning prompt", async (conte
     status: null,
   });
   assert.equal(updated.event.planning_prompt_text, null);
+  const afterClear = await registry.execute("calendar_event_list", {
+    starts_at_utc: "2026-09-05T00:00:00.000Z",
+    ends_at_utc: "2026-09-07T00:00:00.000Z",
+  });
+  assert.equal(afterClear.occurrences[0].occurrence.planning_state, null);
 });
 
 test("calendar mutations reject a start instant outside the source-authorized weekday target", async (context) => {

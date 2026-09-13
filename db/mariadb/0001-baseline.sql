@@ -1,5 +1,5 @@
 -- Chapeaux Fous MariaDB schema baseline.
--- Target: MariaDB 10.11, schema version 41.
+-- Target: MariaDB 10.11, schema version 42.
 --
 -- Apply only to an empty database whose default character set is utf8mb4.
 -- This file is the authoritative schema for a fresh Chapeaux Fous database.
@@ -497,7 +497,7 @@ CREATE TABLE todo_personal (
     -- synonyms: ["personal to-dos", "to-do list", "tasks"]
     -- keywords: ["todo", "to-do", "task", "complete", "sequence"]
     -- planning_prompt_text synonyms: ["planning question"]
-    -- planning_prompt_text keywords: ["plan", "unplanned", "proactive question"]
+    -- planning_prompt_text keywords: ["plan", "proactive question"]
     -- planning_prompt_text examples: ["What do we want to do while we have the kids this afternoon?"]
     -- fk:todo_personal_contact_fk meaning: Associates a personal task with the optional contact it concerns without assigning task ownership.
     -- fk:todo_personal_contact_fk cardinality: Each task references zero or one contact; one contact may be referenced by multiple tasks.
@@ -517,7 +517,7 @@ CREATE TABLE todo_personal (
     sequence             BIGINT COMMENT 'Stable positive number that identifies this task within its group when that group uses numbered work. Units: sequence number. Unique within todo_group_id when present; unlike sort_position, it does not change when the list is reordered.',
     related_contact_id   BIGINT UNSIGNED COMMENT 'Optional contact that this task concerns; it does not assign ownership of the task.',
     text                 TEXT NOT NULL COMMENT 'Complete wording of the task, serving as both its short label and any longer explanation. Sensitivity: May contain private plans, names, and instructions.',
-    status               ENUM('unplanned', 'todo', 'complete', 'ignore', 'archive', 'ai_suggested') NOT NULL DEFAULT 'todo' COMMENT 'Compact lifecycle state controlling whether and how the task appears in the user''s list. unplanned: The item is active but still needs a concrete plan. todo: the user intends to do this task. complete: The task was finished. ignore: The task was intentionally skipped without completion. archive: The task is retained as history but removed from ordinary views. ai_suggested: The agent proposed the task and the user has not yet accepted or dismissed it.',
+    status               ENUM('todo', 'complete', 'ignore', 'archive', 'ai_suggested') NOT NULL DEFAULT 'todo' COMMENT 'Compact lifecycle state controlling whether and how the task appears in the user''s list. todo: The user intends to do this task. complete: The task was finished. ignore: The task was intentionally skipped without completion. archive: The task is retained as history but removed from ordinary views. ai_suggested: The agent proposed the task and the user has not yet accepted or dismissed it.',
     sort_position        BIGINT NOT NULL DEFAULT 0 COMMENT 'Mutable ordering value used to place tasks directly within a group; it conveys no importance or priority. Lower values appear first within the same group.',
     completed_at_utc     VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin COMMENT 'UTC instant when the task entered complete status; null for tasks not currently complete. Format: ISO 8601 UTC timestamp.',
     source               VARCHAR(255) COMMENT 'Optional stable name of the system or workflow that supplied this task.',
@@ -1093,7 +1093,7 @@ WHERE status IN ('pending', 'error')
   AND remind_at_utc <= CONCAT(LEFT(DATE_FORMAT(UTC_TIMESTAMP(3), '%Y-%m-%dT%H:%i:%s.%f'), 23), 'Z');
 
 CREATE VIEW open_todo_personal AS
--- Provides the personal tasks that currently belong on the user's actionable To-Do List. One row represents one task whose status is unplanned, todo, or ai_suggested. The view includes unplanned, todo, and ai_suggested tasks and excludes complete, ignored, and archived tasks. Sensitivity: Contains the user's private plans, commitments, and agent-suggested work.
+-- Provides the personal tasks that currently belong on the user's actionable To-Do List. One row represents one task whose status is todo or ai_suggested. The view excludes complete, ignored, and archived tasks. Sensitivity: Contains the user's private plans, commitments, and agent-suggested work.
 -- sourceOfTruth: false
 -- derivedFrom: ["todo_personal"]
 -- synonyms: ["open tasks", "active todos"]
@@ -1115,7 +1115,7 @@ CREATE VIEW open_todo_personal AS
 -- planning_prompt_text inheritsFrom: todo_personal.planning_prompt_text
 
 SELECT * FROM todo_personal
-WHERE status IN ('unplanned', 'todo', 'ai_suggested');
+WHERE status IN ('todo', 'ai_suggested');
 
 CREATE VIEW upcoming_calendar AS
 -- Selects tentative and confirmed calendar events whose start time has not yet passed, ordered by start time. One row represents one tentative or confirmed calendar event whose start time has not yet passed. This is a time-dependent view and excludes cancelled, completed, and already-started events. Sensitivity: Contains private future schedule and location information.
@@ -1250,4 +1250,4 @@ END//
 DELIMITER ;
 
 INSERT INTO database_meta (singleton, schema_version, description)
-VALUES (1, 41, 'Chapeaux Fous MariaDB database');
+VALUES (1, 42, 'Chapeaux Fous MariaDB database');

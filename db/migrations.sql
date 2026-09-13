@@ -16,6 +16,24 @@
 --   <schema and data SQL>
 --   -- end migration 0032
 
+-- migration 0042: retire-unplanned-todo-status
+-- writer downtime: required; application writers must switch atomically with the narrowed to-do status enum.
+-- locking: updates any remaining unplanned tasks, modifies the todo_personal enum under a metadata lock, and replaces one derived view.
+-- recovery: MariaDB DDL commits implicitly. The data update, enum modification, and view replacement are idempotent. If interrupted, keep writers stopped and replay this migration; existing unplanned tasks have already been preserved as todo tasks.
+
+UPDATE todo_personal
+SET status = 'todo'
+WHERE CAST(status AS CHAR) = 'unplanned';
+
+ALTER TABLE todo_personal
+    MODIFY COLUMN status ENUM('todo', 'complete', 'ignore', 'archive', 'ai_suggested') NOT NULL DEFAULT 'todo' COMMENT 'Compact lifecycle state controlling whether and how the task appears in the user''s list. todo: The user intends to do this task. complete: The task was finished. ignore: The task was intentionally skipped without completion. archive: The task is retained as history but removed from ordinary views. ai_suggested: The agent proposed the task and the user has not yet accepted or dismissed it.';
+
+CREATE OR REPLACE VIEW open_todo_personal AS
+SELECT * FROM todo_personal
+WHERE status IN ('todo', 'ai_suggested');
+
+-- end migration 0042
+
 -- migration 0041: restore-catch-up-source-check
 -- writer downtime: required; the check is restored under a metadata lock and must not race catch-up question writes.
 -- locking: two short ALTER TABLE statements take metadata locks on catch_up_questions; adding the check validates existing rows.

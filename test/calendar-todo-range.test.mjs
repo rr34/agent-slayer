@@ -22,6 +22,12 @@ test("calendar events and to-dos have replaceable many-to-many links", () => {
     assert.deepEqual(linked.map(({ todoId, relationshipKind }) => [todoId, relationshipKind]), [
       [bathe.id, "work"], [supplies.id, "context"],
     ]);
+    organizer.updateTodo(supplies.id, { version: supplies.version, status: "archive" });
+    assert.deepEqual(organizer.getCalendar(event.id).linkedTodos.map(({ todoId }) => todoId), [bathe.id]);
+    assert.equal(organizer.database.prepare(`
+      SELECT COUNT(*) AS count FROM calendar_events_todo_join
+      WHERE calendar_event_id = ? AND personal_task_id = ?
+    `).get(event.id, supplies.id).count, 1);
 
     const deadline = organizer.createCalendar({
       title: "Due: Bathe Ruby", startsAtUtc: "2026-09-20T23:00:00.000Z",
@@ -67,6 +73,36 @@ test("calendar routines generate idempotent events and never generate to-dos", (
     assert.deepEqual(organizer.generateCalendarRoutines(range), {
       createdCount: 0, existingCount: 1, movedTodoCount: 0, rollovers: [], events: [],
     });
+  } finally {
+    organizer.close();
+    temporary.cleanup();
+  }
+});
+
+test("calendar routines copy planning prompts only when each concrete event is generated", () => {
+  const temporary = temporaryDatabase();
+  const organizer = new OrganizerStore(temporary.target);
+  try {
+    const created = organizer.createCalendarRoutine({
+      title: "Planning window",
+      startsAtUtc: "2026-09-13T15:00:00.000Z",
+      endsAtUtc: "2026-09-13T16:00:00.000Z",
+      timeZone: "America/New_York",
+      recurrenceRule: "FREQ=WEEKLY;BYDAY=SU",
+      planningPromptText: "What should happen this week?",
+    }).routine;
+    const first = organizer.generateCalendarRoutines({
+      from: "2026-09-13T00:00:00.000Z", to: "2026-09-20T00:00:00.000Z",
+    }).events[0];
+    organizer.updateCalendarRoutine(created.id, {
+      version: created.version,
+      planningPromptText: "What should happen next week?",
+    });
+    const second = organizer.generateCalendarRoutines({
+      from: "2026-09-20T00:00:00.000Z", to: "2026-09-27T00:00:00.000Z",
+    }).events[0];
+    assert.equal(organizer.getCalendar(first.id).planningPromptText, "What should happen this week?");
+    assert.equal(second.planningPromptText, "What should happen next week?");
   } finally {
     organizer.close();
     temporary.cleanup();

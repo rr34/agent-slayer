@@ -631,7 +631,7 @@ test("editing a published occurrence does not rewrite its routine definition", (
       durationMinutes: 420,
       recurrenceRule: "FREQ=WEEKLY;INTERVAL=1;BYDAY=TH",
       recurrenceTimeZone: "America/New_York",
-      status: "unplanned",
+      status: "todo",
     });
     const published = organizer.publishRoutines({
       from: "2026-09-03T00:00:00.000Z",
@@ -648,7 +648,7 @@ test("editing a published occurrence does not rewrite its routine definition", (
     assert.equal(updated.status, "todo");
     const definition = organizer.getRoutine(created.routine.id);
     assert.equal(definition.text, "Regular work window");
-    assert.equal(definition.status, "unplanned");
+    assert.equal(definition.status, "todo");
   } finally {
     organizer.close();
     temporary.cleanup();

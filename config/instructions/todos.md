@@ -6,9 +6,10 @@ to-do text.
 
 Honor an explicitly named group. Without one, call `todo_group_list` and choose
 the best clear existing group. Do not invent a group; use Inbox only when no
-existing group reasonably fits. Use status `unplanned` when an active item
-still needs a concrete plan. Preserve an exact user-supplied planning question
-in `planning_prompt_text`; the prompt and lifecycle status remain independent.
+existing group reasonably fits. New user-authored work uses status `todo`;
+`ai_suggested` is reserved for agent-proposed work that the user has not
+accepted or dismissed. Preserve an exact user-supplied planning question in
+`planning_prompt_text`; the prompt and lifecycle status remain independent.
 
 Use `todo_list.queries` for lookups. Batch independent lookups, use
 `personal_task_ids` for known tasks, and follow each `next_cursor` until the

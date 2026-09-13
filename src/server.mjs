@@ -58,6 +58,7 @@ const identity = runtimeIdentity(config.repositoryRoot);
 const store = new SlayerDatabase(config.databaseTarget);
 const ledger = new Ledger(store);
 const organizer = store.status.ready ? new OrganizerStore(config.databaseTarget) : null;
+const catchUp = store.status.ready ? new CatchUpService(store, organizer, ledger) : null;
 const profileFacts = new ProfileFacts({ store, ledger });
 const interactionGuides = new InteractionGuides({
   store,
@@ -101,11 +102,11 @@ const jmap = new JmapClient({
   timeoutMs: config.jmapTimeoutMs,
 });
 if (store.status.ready) {
-  registerCalendarTools(registry, store, organizer, ledger, searchCoordinator);
+  registerCalendarTools(registry, store, organizer, ledger, searchCoordinator, catchUp);
   registerContactTools(registry, store, organizer, ledger, searchCoordinator);
   registerTodoTools(registry, store, ledger);
   registerJournalTools(registry, store, ledger);
-  registerCatchUpTools(registry, new CatchUpService(store, organizer, ledger));
+  registerCatchUpTools(registry, catchUp);
   registerInteractionGuideTools(registry, interactionGuides);
   registerProfileFactTools(registry, profileFacts);
   registerDatabaseTools(registry, store, ledger, searchCoordinator);
@@ -566,10 +567,10 @@ const server = http.createServer(async (request, response) => {
     }
     if (request.method === "GET" && url.pathname === "/api/calendar-events") {
       sendJson(response, 200, {
-        events: organizer.listCalendar({
+        events: catchUp.withCalendarPlanningStates(organizer.listCalendar({
           from: url.searchParams.get("from"),
           to: url.searchParams.get("to"),
-        }),
+        })),
       });
       return;
     }

@@ -564,6 +564,10 @@ button.text-button:hover { color: var(--text); background: transparent; text-dec
   line-clamp: 2;
 }
 .agenda-item .agenda-item-details { font-size: .7rem; }
+.agenda-item .agenda-planning-state { display: inline-flex; width: fit-content; margin-top: .4rem; padding: .16rem .42rem; border-radius: 999px; font-size: .66rem; font-weight: 600; }
+.agenda-item .agenda-planning-state.needs_planning { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.agenda-item .agenda-planning-state.deferred { color: var(--muted); background: var(--panel-raised); }
+.agenda-item .agenda-planning-state.planned { color: var(--good); background: color-mix(in srgb, var(--good) 12%, transparent); }
 .agenda-event-todos { margin-top: -1px; padding: 0 .7rem; background: var(--panel); border: 1px solid var(--line); border-radius: 0 0 13px 13px; }
 .agenda-event-todos-summary { padding: .5rem 0; color: var(--muted); font-size: .7rem; cursor: pointer; }
 .agenda-event-todo-list { display: grid; gap: .3rem; margin: 0; padding: 0 0 .6rem; list-style: none; }

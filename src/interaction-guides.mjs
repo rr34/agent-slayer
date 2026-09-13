@@ -1181,7 +1181,7 @@ export class InteractionGuides {
       }
       const linked = database.prepare(`
         SELECT COUNT(*) AS count FROM todo_personal
-        WHERE interaction_guide_id = ? AND status IN ('unplanned', 'todo', 'ai_suggested')
+        WHERE interaction_guide_id = ? AND status IN ('todo', 'ai_suggested')
       `).get(selectedId);
       if (Number(linked.count) > 0) {
         throw conflict("Unlink the active to-dos that use this briefing before archiving it");

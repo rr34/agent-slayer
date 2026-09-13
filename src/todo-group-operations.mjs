@@ -61,7 +61,7 @@ export function archiveEmptyTodoGroup(database, { groupId = null, groupName = nu
   const activeTaskCount = Number(database.prepare(`
     SELECT COUNT(*) AS count
     FROM todo_personal
-    WHERE todo_group_id = ? AND status IN ('unplanned', 'todo', 'ai_suggested')
+    WHERE todo_group_id = ? AND status IN ('todo', 'ai_suggested')
   `).get(group.todo_group_id).count);
   if (activeTaskCount > 0) {
     throw new TodoGroupOperationError(

@@ -147,7 +147,12 @@ async function assertVersion30Integrity(connection, databaseName) {
     for (const [fieldName, expectedValues] of Object.entries(fields)) {
       const qualifiedName = `${tableName}.${fieldName}`;
       const actualValues = actualByName.get(qualifiedName);
-      if (JSON.stringify(actualValues) !== JSON.stringify(expectedValues)) {
+      const historicallyValidValues = qualifiedName === "todo_personal.status"
+        ? [["unplanned", "todo", "complete", "ignore", "archive", "ai_suggested"], expectedValues]
+        : [expectedValues];
+      if (!historicallyValidValues.some((values) => (
+        JSON.stringify(actualValues) === JSON.stringify(values)
+      ))) {
         throw new Error(`Migration 0030 did not establish the expected enum ${qualifiedName}`);
       }
     }
@@ -295,6 +300,29 @@ async function assertVersion32Integrity(connection, databaseName) {
 }
 
 export async function assertMigrationSpecificIntegrity(connection, migration, databaseName) {
+  if (migration.version === 42) {
+    const [columns] = await connection.query(`SELECT COLUMN_TYPE
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'todo_personal' AND COLUMN_NAME = 'status'`, [databaseName]);
+    if (JSON.stringify(enumValues(columns[0]?.COLUMN_TYPE))
+        !== JSON.stringify(requiredEnumColumns.todo_personal.status)) {
+      throw new Error("Migration 0042 did not retire the unplanned to-do status enum value");
+    }
+    const [tasks] = await connection.query(
+      "SELECT COUNT(*) AS task_count FROM todo_personal WHERE CAST(status AS CHAR) = 'unplanned'",
+    );
+    if (Number(tasks[0]?.task_count) !== 0) {
+      throw new Error("Migration 0042 left unplanned personal to-dos");
+    }
+    const [views] = await connection.query(`SELECT VIEW_DEFINITION
+      FROM information_schema.VIEWS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'open_todo_personal'`, [databaseName]);
+    const definition = String(views[0]?.VIEW_DEFINITION ?? "").toLowerCase();
+    if (!definition.includes("'todo'") || !definition.includes("'ai_suggested'")
+        || definition.includes("'unplanned'")) {
+      throw new Error("Migration 0042 did not update open_todo_personal");
+    }
+  }
   if (migration.version === 41) {
     const [checks] = await connection.query(`SELECT CONSTRAINT_NAME, CONSTRAINT_TYPE
       FROM information_schema.TABLE_CONSTRAINTS

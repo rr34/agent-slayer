@@ -17,7 +17,7 @@ const defaultCalendarTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
 const calendarStatuses = new Set(["active", "archived"]);
 const visibleCalendarStorageStatuses = ["tentative", "confirmed"];
-const todoStatuses = new Set(["unplanned", "todo", "complete", "ignore", "archive", "ai_suggested"]);
+const todoStatuses = new Set(["todo", "complete", "ignore", "archive", "ai_suggested"]);
 const contentTypes = new Set([
   "mobileUGC_tutorial", "mobileUGC_ad", "webUGC_tutorial", "webUGC_ad",
   "video_ad", "podcast", "image", "unknown",
@@ -712,6 +712,7 @@ function calendarEventTodoLinks(database, eventIds) {
     JOIN todo_personal AS task USING (personal_task_id)
     JOIN todo_groups AS todo_group USING (todo_group_id)
     WHERE relation.calendar_event_id IN (${ids.map(() => "?").join(", ")})
+      AND task.status <> 'archive'
     ORDER BY relation.calendar_event_id, todo_group.sort_position,
              task.sort_position, task.personal_task_id
   `).all(...ids);
@@ -1917,16 +1918,14 @@ export class OrganizerStore {
 
   listTodos({ scope = "active", limit = 500 } = {}) {
     const boundedLimit = integer(limit, "limit", { fallback: 500, minimum: 1, maximum: 1000 });
-    if (!new Set(["active", "unplanned", "all", "completed"]).has(scope)) {
-      throw new OrganizerInputError("scope must be active, unplanned, completed, or all.");
+    if (!new Set(["active", "all", "completed"]).has(scope)) {
+      throw new OrganizerInputError("scope must be active, completed, or all.");
     }
     let where = scope === "active"
-      ? "WHERE task.status IN ('unplanned', 'todo', 'ai_suggested')"
-      : scope === "unplanned"
-        ? "WHERE task.status = 'unplanned'"
-        : scope === "completed"
-          ? "WHERE task.status = 'complete'"
-          : "";
+      ? "WHERE task.status IN ('todo', 'ai_suggested')"
+      : scope === "completed"
+        ? "WHERE task.status = 'complete'"
+        : "";
     return this.database.prepare(`
       SELECT task.*, todo_group.name AS group_name,
              todo_group.archived_at_utc AS group_archived_at_utc,
@@ -2211,7 +2210,7 @@ export class OrganizerStore {
             AND source.calendar_event_id <> ?
             AND source.starts_at_utc < ?
             AND relation.relationship_kind = 'work'
-            AND task.status IN ('unplanned', 'todo', 'ai_suggested')
+            AND task.status IN ('todo', 'ai_suggested')
           ORDER BY relation.personal_task_id
         `).all(routine.calendar_routine_id, target.calendar_event_id, target.starts_at_utc);
         for (const candidate of candidates) {
@@ -3220,7 +3219,7 @@ export class OrganizerStore {
       ).get(link.todoId);
       if (!todo) throw new OrganizerInputError("Linked to-do not found.", 404);
       if (link.relationshipKind === "work"
-          && !["unplanned", "todo", "ai_suggested"].includes(todo.status)) {
+          && !["todo", "ai_suggested"].includes(todo.status)) {
         throw new OrganizerInputError("Only an unfinished to-do can be placed as work.", 409);
       }
     }
@@ -3307,7 +3306,7 @@ export class OrganizerStore {
       const todo = this.getTodo(placement.todoId);
       if (!todo) throw new OrganizerInputError("To-do not found.", 404);
       if (placement.relationshipKind === "work"
-          && !["unplanned", "todo", "ai_suggested"].includes(todo.status)) {
+          && !["todo", "ai_suggested"].includes(todo.status)) {
         throw new OrganizerInputError("Only an unfinished to-do can be placed as work.", 409);
       }
       const event = this.database.prepare(`

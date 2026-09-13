@@ -98,7 +98,7 @@ export const requiredEnumColumns = {
   calendar_event_contacts: { participant_role: ["organizer", "attendee", "customer", "other"] },
   interaction_guide_steps: { progress_state: ["pending", "active", "completed"] },
   calendar_events_todo_join: { relationship_kind: ["work", "deadline", "context"] },
-  todo_personal: { status: ["unplanned", "todo", "complete", "ignore", "archive", "ai_suggested"] },
+  todo_personal: { status: ["todo", "complete", "ignore", "archive", "ai_suggested"] },
   reminders: {
     delivery_method: ["agent", "webhook", "notification", "email", "sms", "other"],
     status: ["pending", "processing", "delivered", "snoozed", "cancelled", "error"],
@@ -205,8 +205,8 @@ export function inspectDatabase(database) {
   const meta = database.prepare(`
     SELECT schema_version FROM database_meta WHERE singleton = 1
   `).get();
-  if (Number(meta?.schema_version) !== 41) {
-    problems.push(`Expected MariaDB schema version 41, found ${meta?.schema_version ?? "none"}`);
+  if (Number(meta?.schema_version) !== 42) {
+    problems.push(`Expected MariaDB schema version 42, found ${meta?.schema_version ?? "none"}`);
   }
   return { ready: problems.length === 0, problems, objects };
 }

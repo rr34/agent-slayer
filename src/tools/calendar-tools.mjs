@@ -137,6 +137,7 @@ function calendarEventWithTodos(database, id) {
     JOIN todo_personal AS task USING (personal_task_id)
     JOIN todo_groups AS todo_group USING (todo_group_id)
     WHERE relation.calendar_event_id = ?
+      AND task.status <> 'archive'
     ORDER BY todo_group.sort_position, task.sort_position, task.personal_task_id
   `).all(id).map((link) => ({
     ...link,
@@ -172,6 +173,7 @@ function displayOccurrence(database, item) {
         occurrence_starts_at_utc: item.startsAtUtc,
         occurrence_ends_at_utc: item.endsAtUtc,
         is_generated_occurrence: true,
+        planning_state: null,
       },
     };
   }
@@ -184,6 +186,7 @@ function displayOccurrence(database, item) {
       occurrence_starts_at_utc: item.startsAtUtc,
       occurrence_ends_at_utc: item.endsAtUtc,
       is_generated_occurrence: Boolean(item.isGeneratedOccurrence),
+      planning_state: item.planningState ?? null,
     },
   };
 }
@@ -210,7 +213,7 @@ function writeEvent(database, ledger, context, {
 }
 
 export function registerCalendarTools(
-  registry, store, organizer, ledger, searchCoordinator = null,
+  registry, store, organizer, ledger, searchCoordinator = null, planningService = null,
 ) {
   registry = registry.withCapability?.("calendar") ?? registry;
   registry.register({
@@ -251,7 +254,7 @@ export function registerCalendarTools(
 
   registry.register({
     name: "calendar_event_list",
-    description: "List the user's calendar schedule in an explicit UTC range. Recurring events are expanded into computed occurrences and contact birthdays shown by the calendar are included. Stored records use exact calendar_events field names; occurrence_* fields describe the computed display instance.",
+    description: "List the user's calendar schedule in an explicit UTC range. Recurring events are expanded into computed occurrences and contact birthdays shown by the calendar are included. Stored records use exact calendar_events field names; occurrence_* fields describe the computed display instance, including whether event planning is needed, deferred, planned, or not applicable.",
     outputSchema: {
       type: "object",
       properties: {
@@ -265,6 +268,13 @@ export function registerCalendarTools(
               occurrence: {
                 type: "object",
                 description: "Computed schedule instance. occurrence_starts_at_utc and occurrence_ends_at_utc are UTC instants for this occurrence; stored event times describe its series.",
+                properties: {
+                  planning_state: {
+                    type: ["string", "null"],
+                    enum: ["needs_planning", "deferred", "planned", null],
+                    description: "Occurrence-specific planning state derived from the event's saved planning prompt and its current check-in resolution. Null means this occurrence has no planning prompt.",
+                  },
+                },
               },
             },
           },
@@ -282,7 +292,13 @@ export function registerCalendarTools(
     },
     async execute({ starts_at_utc: startsAtUtc, ends_at_utc: endsAtUtc }, context) {
       const database = store.requireReady();
-      const occurrences = organizer.listCalendar({ from: startsAtUtc, to: endsAtUtc })
+      const listed = organizer.listCalendar({ from: startsAtUtc, to: endsAtUtc });
+      const occurrences = (planningService
+        ? planningService.withCalendarPlanningStates(listed)
+        : listed.map((item) => ({
+          ...item,
+          planningState: item.planningPromptText?.trim() ? "needs_planning" : null,
+        })))
         .map((item) => displayOccurrence(database, item));
       return {
         starts_at_utc: normalizedIso(startsAtUtc, "starts_at_utc", { required: true }),
@@ -295,7 +311,7 @@ export function registerCalendarTools(
 
   registry.register({
     name: "calendar_event_add",
-    description: "Create one native calendar event with an optional planning_prompt_text containing the exact question to ask about still-unplanned time. Use is_all_day=true when the user names a day without a specific time, with starts_at_utc representing local midnight and time_zone preserving that local date. For repetition, supply structured recurrence concepts including numbered weekdays or days of the month; never write RRULE syntax.",
+    description: "Create one native calendar event with an optional planning_prompt_text containing the exact question to ask about time that still needs planning. Use is_all_day=true when the user names a day without a specific time, with starts_at_utc representing local midnight and time_zone preserving that local date. For repetition, supply structured recurrence concepts including numbered weekdays or days of the month; never write RRULE syntax.",
     outputSchema: {
       type: "object",
       properties: { event: calendarEventRecordSchema },

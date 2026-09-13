@@ -38,6 +38,7 @@ test("native to-do contracts are entirely non-temporal", () => {
     for (const retired of ["scheduled_at_utc", "due_at_utc", "is_all_day", "duration_minutes", "recurrence"]) {
       assert.equal(Object.hasOwn(properties, retired), false, `${name}.${retired}`);
     }
+    assert.equal(properties.status.enum.includes("unplanned"), false, `${name}.status`);
   }
   assert.ok(tools.todo_interaction_guide_set);
   assert.equal(schemaProblem({ created: true, task: { personal_task_id: 1, text: "Call Ruby" } },

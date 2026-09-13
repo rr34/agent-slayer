@@ -20,10 +20,16 @@ test("owning tool contracts explain inputs and results without a database or sch
   assert.match(definitions.journal_add.inputSchema.properties.number_value.description, /parent tracker's canonical unit/);
   assert.match(definitions.journal_list.outputSchema.properties.entries.items.properties.external_id.description, /idempotent/);
   assert.match(definitions.calendar_event_update.inputSchema.properties.planning_prompt_text.description, /Null leaves it unchanged/);
+  assert.deepEqual(
+    definitions.calendar_event_list.outputSchema.properties.occurrences.items.properties
+      .occurrence.properties.planning_state.enum,
+    ["needs_planning", "deferred", "planned", null],
+  );
   assert.match(definitions.calendar_event_add.inputSchema.properties.is_all_day.description, /^True when/);
   assert.match(definitions.interaction_guide_get.outputSchema.properties.guide.properties.steps.items.properties.answers_json.description, /actually supplied/);
   assert.equal(Object.hasOwn(definitions.todo_update.inputSchema.properties.updates.items.properties, "duration_minutes"), false);
   assert.equal(Object.hasOwn(definitions.todo_add.inputSchema.properties, "scheduled_at_utc"), false);
+  assert.equal(definitions.todo_add.inputSchema.properties.status.enum.includes("unplanned"), false);
   assert.match(definitions.calendar_routine_add.description, /generates concrete calendar events only/);
   assert.equal(definitions.calendar_routine_list.annotations.readOnlyHint, true);
   assert.match(definitions.calendar_event_todo_links_set.description, /multiple to-dos/);
