@@ -27,6 +27,8 @@ test("owning tool contracts explain inputs and results without a database or sch
   assert.match(definitions.calendar_routine_add.description, /generates concrete calendar events only/);
   assert.equal(definitions.calendar_routine_list.annotations.readOnlyHint, true);
   assert.match(definitions.calendar_event_todo_links_set.description, /multiple to-dos/);
+  assert.match(definitions.calendar_todo_links_place.description, /moves that to-do's other work link/);
+  assert.match(definitions.calendar_routine_generate.description, /earliest current or upcoming event/);
   assert.ok(definitions.contact_search.outputSchema.properties.matches.items.properties.display_name.description);
   assert.equal(schemaProblem({ updated_count: 1, items: [{ task: { text: "Updated task" } }] }, definitions.todo_update.outputSchema), null);
 });

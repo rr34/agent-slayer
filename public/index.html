@@ -636,11 +636,6 @@
       </div>
       <label>Location<input id="event-location" maxlength="1000"></label>
       <label>Description<textarea id="event-description" rows="4"></textarea></label>
-      <fieldset class="event-todo-links">
-        <legend>To-do links</legend>
-        <p class="field-hint">Checked to-dos are linked as work, a deadline, or context. Expand the available list to add another.</p>
-        <div id="event-todo-link-list" class="event-todo-link-list"></div>
-      </fieldset>
       <label>Planning prompt<textarea id="event-planning-prompt" rows="3" maxlength="10000" placeholder="What should the agent ask to help plan this time?"></textarea></label>
       <label>Status<select id="event-status">
         <option value="active">Active</option><option value="archived">Archived</option>
@@ -773,6 +768,34 @@
       <footer class="editor-actions">
         <button class="secondary dialog-close" type="button">Cancel</button>
         <button type="submit">Save todo</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="todo-calendar-dialog" class="editor-dialog todo-calendar-dialog">
+    <form id="todo-calendar-form" method="dialog">
+      <header class="dialog-heading">
+        <div><p class="eyebrow">Calendar placement</p><h2 id="todo-calendar-title">Place todo</h2></div>
+        <button class="secondary compact dialog-close" type="button">Close</button>
+      </header>
+      <input id="todo-calendar-todo-id" type="hidden">
+      <section aria-labelledby="todo-calendar-current-heading">
+        <h3 id="todo-calendar-current-heading">Current event links</h3>
+        <div id="todo-calendar-current" class="todo-calendar-current"></div>
+      </section>
+      <div class="todo-calendar-placement">
+        <label>Event<select id="todo-calendar-event" required></select></label>
+        <label>Relationship<select id="todo-calendar-relationship">
+          <option value="work">Work</option>
+          <option value="deadline">Deadline</option>
+          <option value="context">Context</option>
+        </select></label>
+      </div>
+      <p class="field-hint">Choosing Work on a routine event shifts this todo from another work event in the same routine. Deadline and context links stay where you put them.</p>
+      <p id="todo-calendar-form-error" class="form-error" role="alert"></p>
+      <footer class="editor-actions">
+        <button class="secondary dialog-close" type="button">Cancel</button>
+        <button id="todo-calendar-submit" type="submit">Add to event</button>
       </footer>
     </form>
   </dialog>

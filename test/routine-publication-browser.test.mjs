@@ -4,6 +4,7 @@ import test from "node:test";
 import { calendarEventCellItem } from "../public/calendar-grid.js";
 
 const app = fs.readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
+const html = fs.readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
 
 test("routine generation publishes calendar events and highlights those events", () => {
   assert.match(app, /api\("\/api\/calendar-routines\/generate"/);
@@ -24,12 +25,13 @@ test("calendar routine controls expose bounded weekly generation", () => {
   assert.match(app, /events were.*already present/);
 });
 
-test("calendar loads to-dos only as link targets, not as scheduled calendar items", () => {
-  assert.match(app, /api\("\/api\/todos\?scope=active&limit=1000"\)/);
+test("to-dos own calendar placement while the event editor remains event-focused", () => {
+  assert.match(app, /openTodoCalendar\(todo\)/);
+  assert.match(app, /\/api\/todos\/\$\{todoId\}\/calendar-links/);
   assert.match(app, /linkedTodos/);
-  assert.match(app, /No linked to-dos\./);
-  assert.match(app, /Add a to-do link \(\$\{availableCount\} available\)/);
-  assert.match(app, /if \(!choices\.has\(id\)\) choices\.set/u);
+  assert.match(html, /shifts this todo from another work event in the same routine/u);
+  assert.doesNotMatch(app, /eventTodoLinkList/);
+  assert.doesNotMatch(app, /calendar-events\/\$\{savedId\}\/todo-links/);
   assert.doesNotMatch(app, /todosScheduledOnDay/);
   assert.doesNotMatch(app, /todosDueOnDay/);
 });

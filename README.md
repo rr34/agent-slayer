@@ -289,7 +289,7 @@ capability selector, which controls which exact tool schemas are callable.
   atomic call, using the same array schema for a singular update.
 - `calendar_event_search`, `calendar_event_list`, `calendar_event_add`,
   `calendar_event_update`, `calendar_event_recurrence_set`,
-  `calendar_event_todo_links_set`, `calendar_routine_list`,
+  `calendar_event_todo_links_set`, `calendar_todo_links_place`, `calendar_routine_list`,
   `calendar_routine_add`, `calendar_routine_update`, and
   `calendar_routine_generate` provide the native model-facing calendar
   path. Event records retain exact `calendar_events` column names and tool-owned

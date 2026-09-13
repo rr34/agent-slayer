@@ -23,10 +23,12 @@ the user explicitly asks to remove a relationship or prompt. Use
 does not repeat, schedule, or start the briefing.
 
 When a task needs scheduled work, a deadline, or calendar context, use the
-calendar tools to create or update an event and then
-`calendar_event_todo_links_set`. One event may link multiple to-dos and one
-to-do may link multiple events. Select relationship kind `work`, `deadline`, or
-`context` according to the user's meaning.
+calendar tools to create or identify a concrete event and then use
+`calendar_todo_links_place`. One event may link multiple to-dos and one to-do
+may link multiple events. Select relationship kind `work`, `deadline`, or
+`context` according to the user's meaning. Placing work on a generated routine
+event moves the task's other work link in that same routine; deadline and
+context links remain fixed.
 
 Routines and habits are temporal definitions and belong to the calendar
 capability. They generate calendar events only; completing a to-do never

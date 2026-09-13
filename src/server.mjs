@@ -621,6 +621,31 @@ const server = http.createServer(async (request, response) => {
       });
       return;
     }
+    const todoCalendarLinksMatch = /^\/api\/todos\/(\d+)\/calendar-links$/.exec(url.pathname);
+    if (request.method === "GET" && todoCalendarLinksMatch) {
+      sendJson(response, 200, organizer.getTodoCalendarLinks(todoCalendarLinksMatch[1], {
+        after: url.searchParams.get("after") || undefined,
+        limit: url.searchParams.get("limit") || 500,
+      }));
+      return;
+    }
+    if (request.method === "POST" && todoCalendarLinksMatch) {
+      const body = await readJson(request);
+      sendJson(response, 200, organizer.placeTodoCalendarLinks({ placements: [{
+        todoId: Number(todoCalendarLinksMatch[1]),
+        eventId: body.eventId,
+        relationshipKind: body.relationshipKind,
+      }] }, { actorType: "user", actorName: "todos_page" }));
+      return;
+    }
+    const todoCalendarLinkMatch = /^\/api\/todos\/(\d+)\/calendar-links\/(\d+)$/.exec(url.pathname);
+    if (request.method === "DELETE" && todoCalendarLinkMatch) {
+      sendJson(response, 200, organizer.removeTodoCalendarLink(
+        todoCalendarLinkMatch[1], todoCalendarLinkMatch[2],
+        { actorType: "user", actorName: "todos_page" },
+      ));
+      return;
+    }
     if (request.method === "GET" && url.pathname === "/api/calendar-routines/preview") {
       sendJson(response, 200, organizer.previewCalendarRoutines({
         from: url.searchParams.get("from"),
@@ -629,7 +654,9 @@ const server = http.createServer(async (request, response) => {
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/calendar-routines/generate") {
-      sendJson(response, 200, organizer.generateCalendarRoutines(await readJson(request)));
+      sendJson(response, 200, organizer.generateCalendarRoutines(
+        await readJson(request), { actorType: "user", actorName: "routines_page" },
+      ));
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/calendar-routines") {

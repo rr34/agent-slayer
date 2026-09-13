@@ -198,7 +198,6 @@ const elements = {
   eventDuration: document.querySelector("#event-duration"),
   eventLocation: document.querySelector("#event-location"),
   eventDescription: document.querySelector("#event-description"),
-  eventTodoLinkList: document.querySelector("#event-todo-link-list"),
   eventPlanningPrompt: document.querySelector("#event-planning-prompt"),
   eventStatus: document.querySelector("#event-status"),
   eventRepeatEnabled: document.querySelector("#event-repeat-enabled"),
@@ -253,6 +252,15 @@ const elements = {
   todoStatus: document.querySelector("#todo-status"),
   todoDirectInteractionGuide: document.querySelector("#todo-direct-interaction-guide"),
   todoFormError: document.querySelector("#todo-form-error"),
+  todoCalendarDialog: document.querySelector("#todo-calendar-dialog"),
+  todoCalendarForm: document.querySelector("#todo-calendar-form"),
+  todoCalendarTitle: document.querySelector("#todo-calendar-title"),
+  todoCalendarTodoId: document.querySelector("#todo-calendar-todo-id"),
+  todoCalendarCurrent: document.querySelector("#todo-calendar-current"),
+  todoCalendarEvent: document.querySelector("#todo-calendar-event"),
+  todoCalendarRelationship: document.querySelector("#todo-calendar-relationship"),
+  todoCalendarFormError: document.querySelector("#todo-calendar-form-error"),
+  todoCalendarSubmit: document.querySelector("#todo-calendar-submit"),
   contentSearch: document.querySelector("#content-search"),
   contentStatusFilter: document.querySelector("#content-status-filter"),
   contentGroupFilter: document.querySelector("#content-group-filter"),
@@ -394,7 +402,6 @@ let selectedCalendarDate = new Date();
 let calendarEvents = [];
 let calendarSearchTimer = null;
 let calendarSearchSequence = 0;
-let activeTodos = [];
 let generatedCalendarEventIds = new Set();
 let selectedRoutineDate = new Date();
 let selectedRoutineWeekDate = new Date();
@@ -2307,14 +2314,12 @@ async function refreshHats() {
 async function refreshCalendar() {
   const { gridStart, gridEnd } = twoWeekCalendarRange(calendarRangeStart);
   try {
-    const [calendarBody, todoBody, groupBody, guideBody] = await Promise.all([
+    const [calendarBody, groupBody, guideBody] = await Promise.all([
       api(`/api/calendar-events?from=${encodeURIComponent(gridStart.toISOString())}&to=${encodeURIComponent(gridEnd.toISOString())}`),
-      api("/api/todos?scope=active&limit=1000"),
       api("/api/todo-groups"),
       api("/api/interaction-guides?status=active&limit=500"),
     ]);
     calendarEvents = calendarBody.events;
-    activeTodos = todoBody.todos;
     todoGroups = groupBody.groups;
     todoGuides = guideBody.guides;
     renderCalendar();
@@ -2480,8 +2485,11 @@ async function publishRoutineRange(from, to) {
     const existing = result.existingCount
       ? ` ${result.existingCount} ${result.existingCount === 1 ? "event was" : "events were"} already present.`
       : "";
+    const moved = result.movedTodoCount
+      ? ` Moved ${result.movedTodoCount} unfinished ${result.movedTodoCount === 1 ? "todo" : "todos"} to the next routine event.`
+      : "";
     const range = `${formatDisplayDate(from, { includeTime: false })} through ${formatDisplayDate(addDays(to, -1), { includeTime: false })}`;
-    elements.routinePublishStatus.textContent = `Created ${result.createdCount} calendar ${result.createdCount === 1 ? "event" : "events"} for ${range}.${existing}`;
+    elements.routinePublishStatus.textContent = `Created ${result.createdCount} calendar ${result.createdCount === 1 ? "event" : "events"} for ${range}.${existing}${moved}`;
     generatedCalendarEventIds = new Set(result.events.map(({ id }) => id));
     elements.calendarPublicationStatus.textContent = elements.routinePublishStatus.textContent
       + (result.createdCount > 0 ? " Newly added items are highlighted." : "");
@@ -2734,78 +2742,6 @@ function renderAgenda() {
   }
 }
 
-function renderEventTodoLinks(calendarEvent = null, { routine = false } = {}) {
-  elements.eventTodoLinkList.replaceChildren();
-  elements.eventTodoLinkList.closest("fieldset").hidden = routine;
-  if (routine) return;
-  const linkedTodos = calendarEvent?.linkedTodos ?? [];
-  const selected = new Map(linkedTodos
-    .map((link) => [Number(link.todoId), link.relationshipKind]));
-  const choices = new Map(activeTodos.map((todo) => [Number(todo.id), todo]));
-  for (const link of linkedTodos) {
-    const id = Number(link.todoId);
-    if (!choices.has(id)) choices.set(id, {
-      id, text: link.text, status: link.status,
-      groupId: link.groupId, groupName: link.groupName,
-    });
-  }
-  if (choices.size === 0) {
-    elements.eventTodoLinkList.append(node("p", "empty", "No to-dos available."));
-    return;
-  }
-  const linkedContainer = node("div", "event-todo-linked-list");
-  const availableContainer = node("details", "event-todo-link-options");
-  const availableSummary = node("summary", "", "");
-  availableContainer.append(availableSummary);
-  let linkedCount = 0;
-  let availableCount = 0;
-  for (const todo of choices.values()) {
-    const choice = node("label", "event-todo-link-choice");
-    const checkbox = node("input");
-    checkbox.type = "checkbox";
-    checkbox.value = String(todo.id);
-    checkbox.checked = selected.has(todo.id);
-    const terminal = ["complete", "ignore", "archive"].includes(todo.status) ? ` [${todo.status}]` : "";
-    const text = node("span", "", `#${todo.id} — ${todo.text}${terminal}`);
-    const kind = node("select");
-    for (const value of ["work", "deadline", "context"]) {
-      const option = node("option", "", value);
-      option.value = value;
-      kind.append(option);
-    }
-    kind.value = selected.get(todo.id) ?? "work";
-    kind.disabled = !checkbox.checked;
-    kind.hidden = !checkbox.checked;
-    checkbox.addEventListener("change", () => {
-      kind.disabled = !checkbox.checked;
-      kind.hidden = !checkbox.checked;
-    });
-    choice.append(checkbox, text, kind);
-    if (checkbox.checked) {
-      linkedContainer.append(choice);
-      linkedCount++;
-    } else {
-      availableContainer.append(choice);
-      availableCount++;
-    }
-  }
-  if (linkedCount === 0) linkedContainer.append(node("p", "empty", "No linked to-dos."));
-  elements.eventTodoLinkList.append(linkedContainer);
-  if (availableCount > 0) {
-    availableSummary.textContent = `Add a to-do link (${availableCount} available)`;
-    elements.eventTodoLinkList.append(availableContainer);
-  }
-}
-
-function selectedEventTodoLinks() {
-  return [...elements.eventTodoLinkList.querySelectorAll(".event-todo-link-choice")]
-    .filter((choice) => choice.querySelector('input[type="checkbox"]').checked)
-    .map((choice) => ({
-      todoId: Number(choice.querySelector('input[type="checkbox"]').value),
-      relationshipKind: choice.querySelector("select").value,
-    }));
-}
-
 function openEventEditor(calendarEvent = null, { routine = false } = {}) {
   editingRoutineDefinition = routine;
   elements.eventForm.reset();
@@ -2837,7 +2773,6 @@ function openEventEditor(calendarEvent = null, { routine = false } = {}) {
     elements.eventRepeatEnabled.checked = true;
     updateEventRecurrenceEditor();
   }
-  renderEventTodoLinks(calendarEvent, { routine });
   elements.eventStatus.closest("label").hidden = routine;
   elements.eventDelete.hidden = routine || !calendarEvent;
   updateEventInviteDraftAvailability();
@@ -2981,18 +2916,11 @@ async function saveEvent(event) {
     const endpoint = editingRoutineDefinition
       ? (id ? `/api/calendar-routines/${id}` : "/api/calendar-routines")
       : (id ? `/api/calendar-events/${id}` : "/api/calendar-events");
-    const body = await api(endpoint, {
+    await api(endpoint, {
       method: id ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const savedId = Number(body.event?.id ?? body.routine?.id ?? id);
-    if (!editingRoutineDefinition) {
-      await api(`/api/calendar-events/${savedId}/todo-links`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ links: selectedEventTodoLinks() }),
-      });
-    }
     elements.eventDialog.close();
     if (editingRoutineDefinition) await refreshRoutine();
     else await refreshCalendar();
@@ -3245,8 +3173,9 @@ function renderTodos() {
       const up = node("button", "secondary compact", "↑");
       const down = node("button", "secondary compact", "↓");
       const bottom = node("button", "secondary compact", "⇊");
+      const calendar = node("button", "secondary compact", "Calendar");
       const edit = node("button", "secondary compact", "Edit");
-      top.type = up.type = down.type = bottom.type = edit.type = "button";
+      top.type = up.type = down.type = bottom.type = calendar.type = edit.type = "button";
       top.title = "Move task to top of group";
       up.title = "Move task up";
       down.title = "Move task down";
@@ -3259,6 +3188,7 @@ function renderTodos() {
       up.addEventListener("click", () => void moveTodo(todo, "up", visibleTodos));
       down.addEventListener("click", () => void moveTodo(todo, "down", visibleTodos));
       bottom.addEventListener("click", () => void moveTodo(todo, "bottom", visibleTodos));
+      calendar.addEventListener("click", () => void openTodoCalendar(todo));
       edit.addEventListener("click", () => openTodoEditor(todo));
       if (todo.interactionGuideId != null && todo.interactionGuideStatus === "active"
           && ["unplanned", "todo", "ai_suggested"].includes(todo.status)) {
@@ -3274,12 +3204,107 @@ function renderTodos() {
         assignSequence.addEventListener("click", () => void assignNextTodoSequence(todo, assignSequence));
         actions.append(assignSequence);
       }
+      if (["unplanned", "todo", "ai_suggested"].includes(todo.status)) actions.append(calendar);
       actions.append(top, up, down, bottom, edit);
       card.append(controls, body, actions);
       cards.append(card);
     }
     section.append(heading, cards);
     elements.todoList.append(section);
+  }
+}
+
+function todoCalendarEventLabel(calendarEvent) {
+  const routine = calendarEvent.routineTitle ? " · routine" : "";
+  const relationship = calendarEvent.relationshipKind
+    ? ` · linked as ${calendarEvent.relationshipKind}`
+    : "";
+  return `${calendarEvent.title} · ${formatDisplayDate(calendarEvent.startsAtUtc, {
+    timeZone: calendarEvent.timeZone || undefined,
+  })}${routine}${relationship}`;
+}
+
+async function loadTodoCalendar(todoId) {
+  elements.todoCalendarCurrent.replaceChildren(node("p", "empty", "Loading event links…"));
+  elements.todoCalendarEvent.replaceChildren();
+  elements.todoCalendarSubmit.disabled = true;
+  const result = await api(`/api/todos/${todoId}/calendar-links?limit=500`);
+  elements.todoCalendarCurrent.replaceChildren();
+  if (result.links.length === 0) {
+    elements.todoCalendarCurrent.append(node("p", "empty", "This todo is not linked to an event."));
+  } else {
+    for (const link of result.links) {
+      const row = node("div", "todo-calendar-link");
+      const detail = node("div");
+      detail.append(
+        node("strong", "", link.title),
+        node("span", "", `${formatDisplayDate(link.startsAtUtc, { timeZone: link.timeZone || undefined })} · ${link.relationshipKind}`),
+      );
+      const remove = node("button", "secondary compact", "Remove");
+      remove.type = "button";
+      remove.addEventListener("click", async () => {
+        remove.disabled = true;
+        elements.todoCalendarFormError.textContent = "";
+        try {
+          await api(`/api/todos/${todoId}/calendar-links/${link.eventId}`, { method: "DELETE" });
+          await loadTodoCalendar(todoId);
+        } catch (error) {
+          elements.todoCalendarFormError.textContent = error.message || "Could not remove the event link.";
+          remove.disabled = false;
+        }
+      });
+      row.append(detail, remove);
+      elements.todoCalendarCurrent.append(row);
+    }
+  }
+  for (const calendarEvent of result.events) {
+    const option = node("option", "", todoCalendarEventLabel(calendarEvent));
+    option.value = String(calendarEvent.eventId);
+    elements.todoCalendarEvent.append(option);
+  }
+  if (result.events.length === 0) {
+    const option = node("option", "", "No current or upcoming concrete events");
+    option.value = "";
+    elements.todoCalendarEvent.append(option);
+  }
+  elements.todoCalendarSubmit.disabled = result.events.length === 0;
+}
+
+async function openTodoCalendar(todo) {
+  elements.todoCalendarTodoId.value = String(todo.id);
+  elements.todoCalendarTitle.textContent = `Calendar: ${todo.text}`;
+  elements.todoCalendarRelationship.value = "work";
+  elements.todoCalendarFormError.textContent = "";
+  elements.todoCalendarDialog.showModal();
+  try {
+    await loadTodoCalendar(todo.id);
+    elements.todoCalendarEvent.focus();
+  } catch (error) {
+    elements.todoCalendarCurrent.replaceChildren();
+    elements.todoCalendarFormError.textContent = error.message || "Could not load calendar events.";
+  }
+}
+
+async function saveTodoCalendarPlacement(event) {
+  event.preventDefault();
+  const todoId = Number(elements.todoCalendarTodoId.value);
+  const eventId = Number(elements.todoCalendarEvent.value);
+  if (!Number.isSafeInteger(todoId) || !Number.isSafeInteger(eventId)) return;
+  elements.todoCalendarFormError.textContent = "";
+  elements.todoCalendarSubmit.disabled = true;
+  try {
+    await api(`/api/todos/${todoId}/calendar-links`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventId,
+        relationshipKind: elements.todoCalendarRelationship.value,
+      }),
+    });
+    await loadTodoCalendar(todoId);
+  } catch (error) {
+    elements.todoCalendarFormError.textContent = error.message || "Could not place the todo on that event.";
+    elements.todoCalendarSubmit.disabled = false;
   }
 }
 
@@ -5938,6 +5963,7 @@ elements.todoGroupFilter.addEventListener("change", renderTodos);
 elements.todoContactFilter.addEventListener("change", renderTodos);
 elements.todoGroup.addEventListener("change", updateTodoSequenceHint);
 elements.todoForm.addEventListener("submit", saveTodo);
+elements.todoCalendarForm.addEventListener("submit", saveTodoCalendarPlacement);
 elements.newContentGroup.addEventListener("click", () => void createContentGroup());
 elements.contentGroupForm.addEventListener("submit", saveContentGroup);
 elements.contentGroupArchive.addEventListener("click", () => void archiveEditedContentGroup());

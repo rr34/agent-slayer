@@ -911,12 +911,14 @@ button.text-button:hover { color: var(--text); background: transparent; text-dec
 .event-invite-choice input { width: auto; }
 .event-invite-choice span, .event-invite-choice strong, .event-invite-choice small { display: block; min-width: 0; }
 .event-invite-choice small { overflow: hidden; margin-top: .14rem; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
-.event-todo-link-list { display: grid; gap: .45rem; max-height: 15rem; overflow: auto; }
-.event-todo-linked-list, .event-todo-link-options[open] { display: grid; gap: .45rem; }
-.event-todo-link-options > summary { cursor: pointer; color: var(--accent); }
-.event-todo-link-choice { display: grid; grid-template-columns: auto minmax(0, 1fr) 7rem; align-items: center; gap: .55rem; }
-.event-todo-link-choice input { width: auto; }
-.event-todo-link-choice select { min-width: 0; }
+.todo-calendar-dialog section h3 { margin: 0 0 .55rem; font-size: .9rem; }
+.todo-calendar-current { display: grid; gap: .45rem; max-height: min(30dvh, 15rem); overflow: auto; }
+.todo-calendar-current .empty { margin: .4rem 0; text-align: left; }
+.todo-calendar-link { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .65rem; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.todo-calendar-link div, .todo-calendar-link strong, .todo-calendar-link span { display: block; min-width: 0; }
+.todo-calendar-link span { margin-top: .15rem; color: var(--muted); font-size: .75rem; }
+.todo-calendar-placement { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .75rem; align-items: end; }
+.todo-calendar-placement select { max-width: 100%; }
 .event-invite-count { margin-right: auto; color: var(--muted); font-size: .78rem; }
 
 .hats-heading { align-items: flex-end; }
