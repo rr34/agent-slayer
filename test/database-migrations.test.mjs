@@ -88,6 +88,24 @@ test("historical integrity checks accept fields intentionally superseded by vers
   await assertMigrationSpecificIntegrity(version39, { version: 39 }, "test_database");
 });
 
+test("the catch-up source repair requires the restored check", async () => {
+  let rows = [];
+  const connection = {
+    async query(sql, parameters) {
+      assert.match(sql, /information_schema\.TABLE_CONSTRAINTS/u);
+      assert.match(sql, /CONSTRAINT_NAME = 'catch_up_one_source'/u);
+      assert.deepEqual(parameters, ["test_database"]);
+      return [rows];
+    },
+  };
+  await assert.rejects(
+    assertMigrationSpecificIntegrity(connection, { version: 41 }, "test_database"),
+    /Migration 0041 did not restore check catch_up_one_source/u,
+  );
+  rows = [{ CONSTRAINT_NAME: "catch_up_one_source", CONSTRAINT_TYPE: "CHECK" }];
+  await assertMigrationSpecificIntegrity(connection, { version: 41 }, "test_database");
+});
+
 test("contact tag rename integrity rejects incomplete states", async () => {
   const connection = {
     rows: [],
@@ -138,11 +156,11 @@ test("Journal migration failures identify the exact leftover constraint without 
 
 test("the migration ledger is newest-first and returned oldest-first for execution", () => {
   const migrations = readMigrationLedger(migrationsFilename);
-  assert.deepEqual(migrations.map(({ version }) => version), [30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40]);
-  for (let current = 29; current <= 40; current += 1) {
+  assert.deepEqual(migrations.map(({ version }) => version), [30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41]);
+  for (let current = 29; current <= 41; current += 1) {
     assert.deepEqual(
       validatePendingMigrations(migrations, current).map(({ version }) => version),
-      Array.from({ length: 40 - current }, (_, index) => current + index + 1),
+      Array.from({ length: 41 - current }, (_, index) => current + index + 1),
     );
   }
 });

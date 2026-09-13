@@ -295,6 +295,15 @@ async function assertVersion32Integrity(connection, databaseName) {
 }
 
 export async function assertMigrationSpecificIntegrity(connection, migration, databaseName) {
+  if (migration.version === 41) {
+    const [checks] = await connection.query(`SELECT CONSTRAINT_NAME, CONSTRAINT_TYPE
+      FROM information_schema.TABLE_CONSTRAINTS
+      WHERE CONSTRAINT_SCHEMA = ? AND TABLE_NAME = 'catch_up_questions'
+        AND CONSTRAINT_NAME = 'catch_up_one_source'`, [databaseName]);
+    if (!checks.some(row => row.CONSTRAINT_NAME === "catch_up_one_source" && row.CONSTRAINT_TYPE === "CHECK")) {
+      throw new Error("Migration 0041 did not restore check catch_up_one_source");
+    }
+  }
   if (migration.version === 40) {
     const [tables] = await connection.query(`SELECT TABLE_NAME FROM information_schema.TABLES
       WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN ('calendar_routines', 'calendar_events_todo_join', 'todo_routines')`, [databaseName]);

@@ -16,6 +16,19 @@
 --   <schema and data SQL>
 --   -- end migration 0032
 
+-- migration 0041: restore-catch-up-source-check
+-- writer downtime: required; the check is restored under a metadata lock and must not race catch-up question writes.
+-- locking: two short ALTER TABLE statements take metadata locks on catch_up_questions; adding the check validates existing rows.
+-- recovery: MariaDB DDL commits implicitly. The drop and add are intentionally separate so MariaDB cannot evaluate IF NOT EXISTS against the pre-drop constraint state. If interrupted after the drop, replay this migration with writers still stopped.
+
+ALTER TABLE catch_up_questions
+    DROP CONSTRAINT IF EXISTS catch_up_one_source;
+
+ALTER TABLE catch_up_questions
+    ADD CONSTRAINT catch_up_one_source CHECK ((calendar_event_id IS NOT NULL) + (tracker_id IS NOT NULL) = 1);
+
+-- end migration 0041
+
 -- migration 0040: retire-temporal-todos
 -- writer downtime: required; application code and schema must switch atomically from temporal to-dos to linked calendar events.
 -- locking: deletes derived task catch-up rows, alters todo_personal and calendar_events, and drops todo_routines under metadata locks.

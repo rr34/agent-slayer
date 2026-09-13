@@ -1,5 +1,5 @@
 -- Chapeaux Fous MariaDB schema baseline.
--- Target: MariaDB 10.11, schema version 40.
+-- Target: MariaDB 10.11, schema version 41.
 --
 -- Apply only to an empty database whose default character set is utf8mb4.
 -- This file is the authoritative schema for a fresh Chapeaux Fous database.
@@ -1250,4 +1250,4 @@ END//
 DELIMITER ;
 
 INSERT INTO database_meta (singleton, schema_version, description)
-VALUES (1, 40, 'Chapeaux Fous MariaDB database');
+VALUES (1, 41, 'Chapeaux Fous MariaDB database');

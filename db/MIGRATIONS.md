@@ -58,6 +58,16 @@ Do not restart the service when migration or verification fails. If no
 migrations are pending, `npm run db:migrate` is a read-only integrity check and
 does not require the confirmation variables.
 
+## Version 41: Restore the catch-up source check
+
+Restores `catch_up_one_source`, which version 40 intended to replace after
+removing task-derived catch-up questions. MariaDB can evaluate `ADD CONSTRAINT
+IF NOT EXISTS` against the state before other actions in the same `ALTER TABLE`;
+the original constraint was therefore dropped while its replacement was
+skipped. Version 41 performs the guarded drop and unconditional add in separate
+statements and verifies that the final constraint exists. Keep writers stopped
+while this repair is applied.
+
 ## Versions 39–40: Calendar-owned time and calendar routines
 
 Version 39 additively creates `calendar_routines` and
@@ -89,7 +99,7 @@ reads or writes this table; current request history remains in
 `activity_events` and is unaffected.
 
 This block raised the application schema to version 38; the current application
-requires version 40. Prepare a verified backup before running the migration.
+requires version 41. Prepare a verified backup before running the migration.
 Writer downtime is not required for this block because
 the removed table has no current writer, though earlier pending migrations may
 still require it. The guarded drop supports replay, and the migration verifies

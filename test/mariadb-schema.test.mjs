@@ -67,7 +67,7 @@ test("MariaDB connection settings validate names and ports", () => {
   );
 });
 
-test("the authoritative MariaDB baseline is complete at schema version 40", () => {
+test("the authoritative MariaDB baseline is complete at schema version 41", () => {
   const source = fs.readFileSync(path.join(root, "db", "mariadb", "0001-baseline.sql"), "utf8");
   const statements = parseMariaDbScript(source);
   assert.equal(statements.filter((statement) => /^CREATE TABLE\b/iu.test(statement)).length, 33);
@@ -103,7 +103,17 @@ test("the authoritative MariaDB baseline is complete at schema version 40", () =
   assert.ok(statements.some((statement) => statement.startsWith("CREATE TABLE calendar_routines ")));
   assert.ok(statements.some((statement) => statement.startsWith("CREATE TABLE calendar_events_todo_join ")));
   assert.doesNotMatch(source, /CREATE TABLE todo_routines\b/u);
-  assert.match(statements.at(-1), /VALUES \(1, 40, 'Chapeaux Fous MariaDB database'\)$/);
+  assert.match(statements.at(-1), /VALUES \(1, 41, 'Chapeaux Fous MariaDB database'\)$/);
+});
+
+test("the catch-up source repair separates dropping and restoring the check", () => {
+  const migrations = readMigrationLedger(path.join(root, "db", "migrations.sql"));
+  const repair = migrations.find(({ version }) => version === 41)?.sql ?? "";
+  const statements = splitMariaDbStatements(repair);
+  assert.equal(statements.length, 2);
+  assert.match(statements[0], /DROP CONSTRAINT IF EXISTS catch_up_one_source/u);
+  assert.match(statements[1], /ADD CONSTRAINT catch_up_one_source CHECK/u);
+  assert.doesNotMatch(statements[1], /ADD CONSTRAINT IF NOT EXISTS/u);
 });
 
 test("temporal to-do migration preserves schedules and deadlines as linked calendar events", () => {
