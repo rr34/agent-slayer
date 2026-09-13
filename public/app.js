@@ -5429,7 +5429,7 @@ function renderCatchUpSettings() {
     const category = row.dataset.category;
     for (const input of row.querySelectorAll("select, input:not([type=checkbox])")) input.disabled = !settings[`${category}Enabled`];
     const custom = row.querySelector('input[type="date"], input[type="datetime-local"]');
-    custom.hidden = !["date", "custom"].includes(settings[`${category}Day`] || settings[`${category}Time`]);
+    if (custom) custom.hidden = !["date", "custom"].includes(settings[`${category}Day`] || settings[`${category}Time`]);
   }
   elements.catchUpTimeZone.textContent = `Dates and cutoffs use ${Intl.DateTimeFormat().resolvedOptions().timeZone}.`;
   for (const hint of elements.catchUpSettings.querySelectorAll("[data-resolved]")) hint.textContent = "";

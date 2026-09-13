@@ -6,6 +6,7 @@ import { defaultCatchUpSettings, catchUpScopeFromSettings, catchUpRequestText } 
 
 const app = fs.readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
 const source = app.slice(app.indexOf("async function submitTextRequest("), app.indexOf('\nelements.form.addEventListener("submit"'));
+const settingsSource = app.slice(app.indexOf("function readCatchUpSettings("), app.indexOf("\nfunction initializeCatchUpSettings("));
 function browser(settings) {
   const calls = [];
   const elements = {
@@ -48,4 +49,30 @@ test("invalid catch-up settings show an error in Check-in without submitting or 
   assert.deepEqual(calls, []);
   assert.match(elements.catchUpStatus.textContent, /valid calendar date/);
   assert.equal(elements.text.value, "Keep my draft");
+});
+
+test("rendering catch-up settings tolerates a category without a custom date control", () => {
+  const resolved = { textContent: "" };
+  const category = {
+    dataset: { category: "example" },
+    querySelectorAll: () => [],
+    querySelector: () => null,
+  };
+  const context = vm.createContext({
+    Intl,
+    elements: {
+      catchUpSettings: {
+        querySelectorAll(selector) {
+          if (selector === "[data-category]") return [category];
+          return [];
+        },
+        querySelector: () => resolved,
+      },
+      catchUpTimeZone: { textContent: "" },
+    },
+    catchUpScopeFromSettings: () => ({ logs_date: null, plan_through_date: null }),
+    formatDisplayDate: value => value,
+  });
+  vm.runInContext(settingsSource, context);
+  assert.doesNotThrow(() => context.renderCatchUpSettings());
 });
