@@ -2309,7 +2309,7 @@ async function refreshCalendar() {
   try {
     const [calendarBody, todoBody, groupBody, guideBody] = await Promise.all([
       api(`/api/calendar-events?from=${encodeURIComponent(gridStart.toISOString())}&to=${encodeURIComponent(gridEnd.toISOString())}`),
-      api("/api/todos?scope=all&limit=1000"),
+      api("/api/todos?scope=active&limit=1000"),
       api("/api/todo-groups"),
       api("/api/interaction-guides?status=active&limit=500"),
     ]);
@@ -2738,13 +2738,28 @@ function renderEventTodoLinks(calendarEvent = null, { routine = false } = {}) {
   elements.eventTodoLinkList.replaceChildren();
   elements.eventTodoLinkList.closest("fieldset").hidden = routine;
   if (routine) return;
-  const selected = new Map((calendarEvent?.linkedTodos ?? [])
+  const linkedTodos = calendarEvent?.linkedTodos ?? [];
+  const selected = new Map(linkedTodos
     .map((link) => [Number(link.todoId), link.relationshipKind]));
-  if (activeTodos.length === 0) {
+  const choices = new Map(activeTodos.map((todo) => [Number(todo.id), todo]));
+  for (const link of linkedTodos) {
+    const id = Number(link.todoId);
+    if (!choices.has(id)) choices.set(id, {
+      id, text: link.text, status: link.status,
+      groupId: link.groupId, groupName: link.groupName,
+    });
+  }
+  if (choices.size === 0) {
     elements.eventTodoLinkList.append(node("p", "empty", "No to-dos available."));
     return;
   }
-  for (const todo of activeTodos) {
+  const linkedContainer = node("div", "event-todo-linked-list");
+  const availableContainer = node("details", "event-todo-link-options");
+  const availableSummary = node("summary", "", "");
+  availableContainer.append(availableSummary);
+  let linkedCount = 0;
+  let availableCount = 0;
+  for (const todo of choices.values()) {
     const choice = node("label", "event-todo-link-choice");
     const checkbox = node("input");
     checkbox.type = "checkbox";
@@ -2760,9 +2775,25 @@ function renderEventTodoLinks(calendarEvent = null, { routine = false } = {}) {
     }
     kind.value = selected.get(todo.id) ?? "work";
     kind.disabled = !checkbox.checked;
-    checkbox.addEventListener("change", () => { kind.disabled = !checkbox.checked; });
+    kind.hidden = !checkbox.checked;
+    checkbox.addEventListener("change", () => {
+      kind.disabled = !checkbox.checked;
+      kind.hidden = !checkbox.checked;
+    });
     choice.append(checkbox, text, kind);
-    elements.eventTodoLinkList.append(choice);
+    if (checkbox.checked) {
+      linkedContainer.append(choice);
+      linkedCount++;
+    } else {
+      availableContainer.append(choice);
+      availableCount++;
+    }
+  }
+  if (linkedCount === 0) linkedContainer.append(node("p", "empty", "No linked to-dos."));
+  elements.eventTodoLinkList.append(linkedContainer);
+  if (availableCount > 0) {
+    availableSummary.textContent = `Add a to-do link (${availableCount} available)`;
+    elements.eventTodoLinkList.append(availableContainer);
   }
 }
 

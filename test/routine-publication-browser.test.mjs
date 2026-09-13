@@ -25,8 +25,11 @@ test("calendar routine controls expose bounded weekly generation", () => {
 });
 
 test("calendar loads to-dos only as link targets, not as scheduled calendar items", () => {
-  assert.match(app, /api\("\/api\/todos\?scope=all&limit=1000"\)/);
+  assert.match(app, /api\("\/api\/todos\?scope=active&limit=1000"\)/);
   assert.match(app, /linkedTodos/);
+  assert.match(app, /No linked to-dos\./);
+  assert.match(app, /Add a to-do link \(\$\{availableCount\} available\)/);
+  assert.match(app, /if \(!choices\.has\(id\)\) choices\.set/u);
   assert.doesNotMatch(app, /todosScheduledOnDay/);
   assert.doesNotMatch(app, /todosDueOnDay/);
 });

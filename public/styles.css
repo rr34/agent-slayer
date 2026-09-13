@@ -912,6 +912,8 @@ button.text-button:hover { color: var(--text); background: transparent; text-dec
 .event-invite-choice span, .event-invite-choice strong, .event-invite-choice small { display: block; min-width: 0; }
 .event-invite-choice small { overflow: hidden; margin-top: .14rem; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 .event-todo-link-list { display: grid; gap: .45rem; max-height: 15rem; overflow: auto; }
+.event-todo-linked-list, .event-todo-link-options[open] { display: grid; gap: .45rem; }
+.event-todo-link-options > summary { cursor: pointer; color: var(--accent); }
 .event-todo-link-choice { display: grid; grid-template-columns: auto minmax(0, 1fr) 7rem; align-items: center; gap: .55rem; }
 .event-todo-link-choice input { width: auto; }
 .event-todo-link-choice select { min-width: 0; }
