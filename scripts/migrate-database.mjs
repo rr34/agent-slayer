@@ -168,6 +168,19 @@ async function assertVersion30Integrity(connection, databaseName) {
 }
 
 async function assertVersion31Integrity(connection, databaseName) {
+  const [columnRows] = await connection.query(
+    `SELECT COLUMN_NAME
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'todo_personal'
+        AND COLUMN_NAME IN ('todo_routine_id', 'is_all_day', 'duration_minutes')`,
+    [databaseName],
+  );
+  const currentColumns = new Set(columnRows.map((row) => row.COLUMN_NAME));
+  const supersededConstraints = new Set([
+    ...(!currentColumns.has("todo_routine_id") ? ["todo_personal_routine"] : []),
+    ...(!currentColumns.has("is_all_day") ? ["todo_personal_all_day"] : []),
+    ...(!currentColumns.has("duration_minutes") ? ["todo_personal_duration"] : []),
+  ]);
   const relevantConstraintNames = [
     ...version31RequiredConstraints.keys(),
     ...version31RemovedConstraints,
@@ -184,6 +197,7 @@ async function assertVersion31Integrity(connection, databaseName) {
     row.CONSTRAINT_TYPE,
   ]));
   for (const [constraintName, constraintType] of version31RequiredConstraints) {
+    if (supersededConstraints.has(constraintName)) continue;
     if (actualConstraints.get(constraintName) !== constraintType) {
       throw new Error(
         `Migration 0031 did not establish ${constraintType.toLowerCase()} ${constraintName}`,
@@ -306,6 +320,21 @@ export async function assertMigrationSpecificIntegrity(connection, migration, da
       WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN ('calendar_routines', 'calendar_events_todo_join')`, [databaseName]);
     if (new Set(tables.map(row => row.TABLE_NAME)).size !== 2) {
       throw new Error("Migration 0039 did not create calendar routines and event/task joins");
+    }
+    const [legacyColumns] = await connection.query(`SELECT TABLE_NAME, COLUMN_NAME
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ? AND (
+        (TABLE_NAME = 'todo_personal' AND COLUMN_NAME IN ('scheduled_at_utc', 'due_at_utc'))
+        OR (TABLE_NAME = 'calendar_events' AND COLUMN_NAME IN ('migration_personal_task_id', 'migration_relationship_kind'))
+      )`, [databaseName]);
+    const legacyNames = new Set(legacyColumns.map(row => `${row.TABLE_NAME}.${row.COLUMN_NAME}`));
+    const backfillColumns = [
+      "todo_personal.scheduled_at_utc", "todo_personal.due_at_utc",
+      "calendar_events.migration_personal_task_id", "calendar_events.migration_relationship_kind",
+    ];
+    if (legacyNames.size === 0) return;
+    if (!backfillColumns.every((name) => legacyNames.has(name))) {
+      throw new Error("Migration 0039 has an incomplete intermediate backfill shape");
     }
     const [missing] = await connection.query(`SELECT
       SUM(task.scheduled_at_utc IS NOT NULL AND work_link.calendar_event_id IS NULL) AS missing_work,

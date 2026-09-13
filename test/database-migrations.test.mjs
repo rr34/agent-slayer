@@ -57,6 +57,37 @@ test("the notes removal integrity check rejects a surviving table and scopes its
   await assertMigrationSpecificIntegrity(connection, { version: 33 }, "test_database");
 });
 
+test("historical integrity checks accept fields intentionally superseded by version 40", async () => {
+  const version31 = {
+    async query(sql) {
+      if (sql.includes("information_schema.COLUMNS")) return [[]];
+      if (sql.includes("information_schema.TABLE_CONSTRAINTS")) return [[
+        ["todo_personal_group", "FOREIGN KEY"],
+        ["todo_personal_contact_fk", "FOREIGN KEY"],
+        ["todo_personal_source", "FOREIGN KEY"],
+        ["todo_personal_sequence", "CHECK"],
+        ["todo_personal_prompt", "CHECK"],
+      ].map(([CONSTRAINT_NAME, CONSTRAINT_TYPE]) => ({ CONSTRAINT_NAME, CONSTRAINT_TYPE }))];
+      if (sql.includes("information_schema.STATISTICS")) return [[
+        { INDEX_NAME: "todo_personal_source" },
+      ]];
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+  };
+  await assertMigrationSpecificIntegrity(version31, { version: 31 }, "test_database");
+
+  const version39 = {
+    async query(sql) {
+      if (sql.includes("information_schema.TABLES")) return [[
+        { TABLE_NAME: "calendar_routines" }, { TABLE_NAME: "calendar_events_todo_join" },
+      ]];
+      if (sql.includes("information_schema.COLUMNS")) return [[]];
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+  };
+  await assertMigrationSpecificIntegrity(version39, { version: 39 }, "test_database");
+});
+
 test("contact tag rename integrity rejects incomplete states", async () => {
   const connection = {
     rows: [],
