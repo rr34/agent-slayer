@@ -29,6 +29,10 @@ test("to-dos own calendar placement while the event editor remains event-focused
   assert.match(app, /openTodoCalendar\(todo\)/);
   assert.match(app, /\/api\/todos\/\$\{todoId\}\/calendar-links/);
   assert.match(app, /linkedTodos/);
+  assert.match(app, /node\("details", "agenda-event-todos"\)/);
+  assert.match(app, /checklist\.open = true/);
+  assert.match(app, /for \(const todo of calendarEvent\.linkedTodos\)/);
+  assert.match(app, /completed \? "☑" : "☐"/);
   assert.match(html, /shifts this todo from another work event in the same routine/u);
   assert.doesNotMatch(app, /eventTodoLinkList/);
   assert.doesNotMatch(app, /calendar-events\/\$\{savedId\}\/todo-links/);

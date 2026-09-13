@@ -544,9 +544,11 @@ button.text-button:hover { color: var(--text); background: transparent; text-dec
 .agenda-section-heading span { color: var(--muted); font-size: .7rem; }
 .agenda-list { display: grid; gap: .55rem; }
 .agenda-event { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .4rem; align-items: stretch; }
+.agenda-event-content { min-width: 0; }
 .agenda-event-actions { display: flex; align-items: stretch; flex-direction: column; gap: .35rem; }
 .agenda-item, .todo-card { color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 13px; }
 .agenda-item { width: 100%; padding: .7rem; text-align: left; }
+.agenda-event-content.has-linked-todos .agenda-item { border-radius: 13px 13px 0 0; }
 .agenda-item strong, .agenda-item span { display: block; }
 .agenda-item span { margin-top: .25rem; color: var(--muted); font-size: .74rem; }
 .agenda-item .agenda-item-description {
@@ -562,6 +564,14 @@ button.text-button:hover { color: var(--text); background: transparent; text-dec
   line-clamp: 2;
 }
 .agenda-item .agenda-item-details { font-size: .7rem; }
+.agenda-event-todos { margin-top: -1px; padding: 0 .7rem; background: var(--panel); border: 1px solid var(--line); border-radius: 0 0 13px 13px; }
+.agenda-event-todos-summary { padding: .5rem 0; color: var(--muted); font-size: .7rem; cursor: pointer; }
+.agenda-event-todo-list { display: grid; gap: .3rem; margin: 0; padding: 0 0 .6rem; list-style: none; }
+.agenda-event-todo { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: baseline; gap: .4rem; font-size: .75rem; line-height: 1.35; }
+.agenda-event-todo-check { color: var(--brand-mid); font-size: .9rem; }
+.agenda-event-todo-relationship { padding: .1rem .35rem; color: var(--muted); background: var(--panel-raised); border-radius: 999px; font-size: .64rem; }
+.agenda-event-todo-text { min-width: 0; overflow-wrap: anywhere; }
+.agenda-event-todo.completed .agenda-event-todo-text { color: var(--muted); text-decoration: line-through; }
 .agenda-event-copy { align-self: stretch; white-space: nowrap; }
 .agenda-item.todo { border-left: 3px solid var(--brand-mid); }
 .agenda-empty { color: var(--muted); font-size: .83rem; line-height: 1.45; }

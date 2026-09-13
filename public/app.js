@@ -2645,6 +2645,7 @@ function renderCalendar() {
 
 function agendaEventItem(calendarEvent, { allDay = false } = {}) {
     const item = node("div", "agenda-event");
+    const content = node("div", "agenda-event-content");
     const button = node("button", "agenda-item");
     button.type = "button";
     const description = String(calendarEvent.description ?? "").trim();
@@ -2652,10 +2653,6 @@ function agendaEventItem(calendarEvent, { allDay = false } = {}) {
     button.append(node("strong", "", calendarEvent.title));
     if (description) button.append(node("span", "agenda-item-description", description));
     if (details) button.append(node("span", "agenda-item-details", details));
-    if (calendarEvent.linkedTodos?.length) {
-      button.append(node("span", "agenda-item-details", calendarEvent.linkedTodos
-        .map((todo) => `${todo.relationshipKind}: #${todo.todoId} ${todo.text}`).join(" · ")));
-    }
     if (calendarEvent.seriesId) {
       button.title = "Edit this recurring event series.";
       button.addEventListener("click", () => openEventEditor({
@@ -2680,7 +2677,35 @@ function agendaEventItem(calendarEvent, { allDay = false } = {}) {
       agentReferenceButton(calendarEventIdentity(calendarEvent), `calendar event ${calendarEvent.title}`),
       copy,
     );
-    item.append(button, actions);
+    content.append(button);
+    if (calendarEvent.linkedTodos?.length) {
+      content.classList.add("has-linked-todos");
+      const checklist = node("details", "agenda-event-todos");
+      checklist.open = true;
+      checklist.append(node(
+        "summary",
+        "agenda-event-todos-summary",
+        `${calendarEvent.linkedTodos.length} linked ${calendarEvent.linkedTodos.length === 1 ? "to-do" : "to-dos"}`,
+      ));
+      const list = node("ul", "agenda-event-todo-list");
+      for (const todo of calendarEvent.linkedTodos) {
+        const completed = todo.status === "complete";
+        const relationship = String(todo.relationshipKind ?? "context").replaceAll("_", " ");
+        const row = node("li", `agenda-event-todo${completed ? " completed" : ""}`);
+        row.setAttribute("aria-label", `${completed ? "Completed" : "Not completed"}: ${todo.text}; linked as ${relationship}`);
+        const check = node("span", "agenda-event-todo-check", completed ? "☑" : "☐");
+        check.setAttribute("aria-hidden", "true");
+        row.append(
+          check,
+          node("span", "agenda-event-todo-relationship", relationship),
+          node("span", "agenda-event-todo-text", todo.text),
+        );
+        list.append(row);
+      }
+      checklist.append(list);
+      content.append(checklist);
+    }
+    item.append(content, actions);
     return item;
 }
 
