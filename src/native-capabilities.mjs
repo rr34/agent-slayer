@@ -32,7 +32,7 @@ export const nativeCapabilityManifests = [
     id: "calendar", title: "Calendar and routines", summary: "Read and manage all temporal commitments, deadlines, reusable routines, generated events, and their links to to-dos.",
     aliases: ["calendar", "schedule", "agenda", "appointment", "meeting", "event", "routine", "habit", "deadline", "due date", "work window"],
     instructionFile: "calendar.md",
-    readOnlyTools: ["calendar_event_search", "calendar_event_list"],
+    readOnlyTools: ["calendar_event_search", "calendar_event_list", "calendar_routine_list"],
   },
   {
     id: "contacts", title: "Contacts", summary: "Search, import, tag, and merge native contacts.",

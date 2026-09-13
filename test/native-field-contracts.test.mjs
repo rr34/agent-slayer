@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ToolRegistry, schemaProblem } from "../src/tools/registry.mjs";
+import { registerNativeCapabilities } from "../src/native-capabilities.mjs";
 import { registerCalendarTools } from "../src/tools/calendar-tools.mjs";
 import { registerContactTools } from "../src/tools/contact-tools.mjs";
 import { registerJournalTools } from "../src/tools/journal-tools.mjs";
@@ -9,7 +10,7 @@ import { registerProfileFactTools } from "../src/tools/profile-fact-tools.mjs";
 import { registerInteractionGuideTools } from "../src/tools/interaction-guide-tools.mjs";
 
 test("owning tool contracts explain inputs and results without a database or schema catalog", () => {
-  const registry = new ToolRegistry();
+  const registry = registerNativeCapabilities(new ToolRegistry());
   registerCalendarTools(registry, {}, {}, {});
   registerContactTools(registry, {}, {}, {});
   registerJournalTools(registry, {}, {});
@@ -24,6 +25,7 @@ test("owning tool contracts explain inputs and results without a database or sch
   assert.equal(Object.hasOwn(definitions.todo_update.inputSchema.properties.updates.items.properties, "duration_minutes"), false);
   assert.equal(Object.hasOwn(definitions.todo_add.inputSchema.properties, "scheduled_at_utc"), false);
   assert.match(definitions.calendar_routine_add.description, /generates concrete calendar events only/);
+  assert.equal(definitions.calendar_routine_list.annotations.readOnlyHint, true);
   assert.match(definitions.calendar_event_todo_links_set.description, /multiple to-dos/);
   assert.ok(definitions.contact_search.outputSchema.properties.matches.items.properties.display_name.description);
   assert.equal(schemaProblem({ updated_count: 1, items: [{ task: { text: "Updated task" } }] }, definitions.todo_update.outputSchema), null);
